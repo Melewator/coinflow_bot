@@ -1,0 +1,400 @@
+import { Telegraf, Markup } from 'telegraf';
+import { message } from 'telegraf/filters';
+import { prisma } from './db';
+import { parseExpenseMessage, fallbackParse } from './services/aiParser';
+import * as dotenv from 'dotenv';
+import { randomBytes } from 'crypto';
+
+dotenv.config();
+
+const token = process.env.BOT_TOKEN;
+if (!token) {
+    throw new Error('BOT_TOKEN must be provided in .env!');
+}
+
+export const bot = new Telegraf(token);
+
+// Глобальный обработчик ошибок (Отказоустойчивость)
+bot.catch((err, ctx) => {
+    console.error(`❌ Глобальная ошибка Telegram для обновления типа ${ctx.updateType}:`, err);
+    ctx.reply("⚠️ Временная техническая неполадка. Попробуйте чуть позже.").catch(() => { });
+});
+
+// Защита от спама и DDoS (Rate Limiter)
+const userLimits = new Map<string, { count: number, lastMessage: number, warned: boolean, bannedUntil: number }>();
+
+bot.use(async (ctx, next) => {
+    if (!ctx.from) return next();
+
+    const userId = ctx.from.id.toString();
+    const now = Date.now();
+    const limitWindow = 1500; // 1.5 секунды окно
+    const banDuration = 30 * 1000; // 30 секунд бан при злоупотреблении
+
+    let userState = userLimits.get(userId);
+
+    if (!userState) {
+        userState = { count: 1, lastMessage: now, warned: false, bannedUntil: 0 };
+        userLimits.set(userId, userState);
+        return next();
+    }
+
+    if (now < userState.bannedUntil) {
+        return; // Игнорируем пользователя в бане (защита базы и Gemini)
+    }
+
+    if (now - userState.lastMessage < limitWindow) {
+        userState.count++;
+        // Если флудит очень быстро (> 3 сообщений подряд)
+        if (userState.count > 3) {
+            userState.bannedUntil = now + banDuration;
+            userState.count = 0;
+            await ctx.reply("⛔️ Вы отправляете сообщения слишком быстро! Временная блокировка на 30 секунд для защиты от спама.").catch(() => /* игнор ошибок reply */ { });
+            return;
+        }
+
+        if (!userState.warned) {
+            userState.warned = true;
+            await ctx.reply("⚠️ Пожалуйста, не отправляйте запросы так часто (максимум 1 запрос в 1.5 секунды).").catch(() => { });
+        }
+        return; // Прерываем цепочку обработки
+    }
+
+    // Сброс лимитов 
+    userState.count = 1;
+    userState.lastMessage = now;
+    userState.warned = false;
+    return next();
+});
+
+interface PendingTransaction {
+    parsed: any;
+    userId: string;
+    workspaceId: string;
+    categoryId: string;
+    rawText: string;
+    categoryIcon: string;
+}
+const pendingTransactions = new Map<string, PendingTransaction>();
+
+bot.start(async (ctx) => {
+    const fromId = ctx.from.id.toString();
+    const username = ctx.from.username;
+    const firstName = ctx.from.first_name;
+
+    try {
+        let user = await prisma.user.findUnique({
+            where: { id: fromId },
+            include: { workspaces: true }
+        });
+
+        if (!user) {
+            // Создаем пользователя и дефолтный Workspace
+            user = await prisma.user.create({
+                data: {
+                    id: fromId,
+                    username,
+                    firstName,
+                    workspaces: {
+                        create: {
+                            role: 'OWNER',
+                            workspace: {
+                                create: {
+                                    name: `Личные финансы ${firstName}`,
+                                    inviteCode: randomBytes(8).toString('hex'),
+                                    defaultCurrency: 'RUB',
+                                }
+                            }
+                        }
+                    }
+                },
+                include: { workspaces: true }
+            });
+            await ctx.reply(`Привет, ${firstName}! Ваш профиль и личная комната учета расходов созданы. Просто пишите мне свои траты, например: "500 на кофе" или "вчера 20$ такси".`, Markup.inlineKeyboard([
+                Markup.button.webApp('📊 Открыть дашборд', process.env.WEBAPP_URL || 'https://google.com')
+            ]));
+        } else {
+            await ctx.reply(`С возвращением, ${firstName}! Я готов записывать ваши траты.`, Markup.inlineKeyboard([
+                Markup.button.webApp('📊 Открыть дашборд', process.env.WEBAPP_URL || 'https://google.com')
+            ]));
+        }
+    } catch (e) {
+        console.error("Registration Error:", e);
+        await ctx.reply("Произошла ошибка при регистрации. Пожалуйста, попробуйте позже.");
+    }
+});
+
+// Команда статистики за текущий месяц
+bot.command('stats', async (ctx) => {
+    const fromId = ctx.from.id.toString();
+
+    const user = await prisma.user.findUnique({
+        where: { id: fromId },
+        include: {
+            workspaces: {
+                include: { workspace: true }
+            }
+        }
+    });
+
+    if (!user || user.workspaces.length === 0) {
+        return ctx.reply("Для начала работы нажмите /start");
+    }
+
+    const activeWorkspace = user.workspaces[0].workspace;
+
+    // Подготовка дат начала месяца
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    try {
+        const transactions = await prisma.transaction.findMany({
+            where: {
+                workspaceId: activeWorkspace.id,
+                date: {
+                    gte: startOfMonth
+                }
+            },
+            include: {
+                category: true
+            }
+        });
+
+        if (transactions.length === 0) {
+            return ctx.reply("В этом месяце трат еще не было.");
+        }
+
+        let totalAmount = 0;
+        const categoryTotals: Record<string, { amount: number, icon: string }> = {};
+
+        for (const tx of transactions) {
+            totalAmount += tx.amount;
+            const catName = tx.category.name;
+            if (!categoryTotals[catName]) {
+                categoryTotals[catName] = { amount: 0, icon: tx.category.icon };
+            }
+            categoryTotals[catName].amount += tx.amount;
+        }
+
+        let reply = `📊 *Статистика за текущий месяц:*\n`;
+        reply += `Всего: ${totalAmount} ${activeWorkspace.defaultCurrency}\n\n`;
+        reply += `По категориям:\n`;
+
+        // Сортировка по убыванию суммы
+        const sortedCategories = Object.entries(categoryTotals).sort((a, b) => b[1].amount - a[1].amount);
+
+        for (const [name, data] of sortedCategories) {
+            reply += `${data.icon} ${name}: ${data.amount} ${activeWorkspace.defaultCurrency}\n`;
+        }
+
+        await ctx.replyWithMarkdown(reply);
+    } catch (e) {
+        console.error("Stats Error:", e);
+        await ctx.reply("Произошла ошибка при загрузке статистики.");
+    }
+});
+
+// Обработка кнопки подтверждения временной траты
+bot.action(/^confirm_(.+)$/, async (ctx) => {
+    const tempId = ctx.match[1];
+    const data = pendingTransactions.get(tempId);
+
+    if (!data) {
+        return ctx.answerCbQuery("Время ожидания истекло или трата уже обработана", { show_alert: true });
+    }
+
+    try {
+        const transaction = await prisma.transaction.create({
+            data: {
+                workspaceId: data.workspaceId,
+                userId: data.userId,
+                amount: data.parsed.amount,
+                currency: data.parsed.currency,
+                categoryId: data.categoryId,
+                comment: data.parsed.comment || 'Без комментария',
+                date: new Date(data.parsed.date),
+                rawText: data.rawText
+            }
+        });
+
+        pendingTransactions.delete(tempId);
+
+        const replyText = `✅ <b>Трата записана!</b>\n\n` +
+            `💵 Сумма: ${transaction.amount} ${transaction.currency}\n` +
+            `🏷 Категория: ${data.categoryIcon} ${data.parsed.category}\n` +
+            `💬 Комментарий: ${transaction.comment}\n` +
+            `📅 Дата: ${data.parsed.date}`;
+
+        const confirmedText = `${replyText}\n\n💾 <i>Сохранено в базу</i>`;
+
+        await ctx.editMessageText(confirmedText, {
+            parse_mode: 'HTML',
+            reply_markup: { inline_keyboard: [] }
+        });
+
+        await ctx.answerCbQuery("Трата успешно сохранена");
+    } catch (e) {
+        console.error("DB Error on confirm:", e);
+        await ctx.answerCbQuery("Ошибка при сохранении в БД", { show_alert: true });
+    }
+});
+
+// Обработка отмены временной траты
+bot.action(/^cancel_(.+)$/, async (ctx) => {
+    const tempId = ctx.match[1];
+
+    if (pendingTransactions.has(tempId)) {
+        pendingTransactions.delete(tempId);
+    }
+
+    const oldText = ctx.callbackQuery.message && 'text' in ctx.callbackQuery.message ? ctx.callbackQuery.message.text : "Трата отменена";
+    const strikeText = `<s>${oldText.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</s>\n\n<i>❌ Отменено</i>`;
+
+    try {
+        await ctx.editMessageText(strikeText, {
+            parse_mode: 'HTML',
+            reply_markup: { inline_keyboard: [] }
+        });
+        await ctx.answerCbQuery("Отменено");
+    } catch (e) {
+        console.error("Cancel Error:", e);
+        await ctx.answerCbQuery();
+    }
+});
+
+// Обработка кнопки удаления сохраненной траты
+bot.action(/^del_(.+)$/, async (ctx) => {
+    const transactionId = ctx.match[1];
+
+    try {
+        await prisma.transaction.delete({
+            where: { id: transactionId }
+        });
+
+        const oldText = ctx.callbackQuery.message && 'text' in ctx.callbackQuery.message ? ctx.callbackQuery.message.text : "Трата удалена";
+        const strikeText = `<s>${oldText.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</s>\n\n<i>🗑 Удалено</i>`;
+
+        await ctx.editMessageText(strikeText, {
+            parse_mode: 'HTML',
+            reply_markup: { inline_keyboard: [] }
+        });
+        await ctx.answerCbQuery("Трата успешно удалена");
+    } catch (e) {
+        console.error("Delete Error:", e);
+        await ctx.answerCbQuery("Ошибка при удалении", { show_alert: true });
+    }
+});
+
+// Обработка кнопки изменения траты
+bot.action(/^edit_(.+)$/, async (ctx) => {
+    await ctx.answerCbQuery('Функция редактирования скоро появится!', { show_alert: true });
+});
+
+bot.on(message('text'), async (ctx) => {
+    const text = ctx.message.text;
+
+    // Игнорируем команды (они обрабатываются в bot.command)
+    if (text.startsWith('/')) return;
+
+    const fromId = ctx.from.id.toString();
+
+    const user = await prisma.user.findUnique({
+        where: { id: fromId },
+        include: {
+            workspaces: {
+                include: { workspace: true }
+            }
+        }
+    });
+
+    if (!user || user.workspaces.length === 0) {
+        return ctx.reply("Сначала нажмите /start для регистрации.");
+    }
+
+    // Берем первую группу (Workspace) пользователя как активную
+    const activeWorkspace = user.workspaces[0].workspace;
+
+    // Получаем глобальные и специфичные категории
+    const categories = await prisma.category.findMany({
+        where: {
+            OR: [
+                { workspaceId: activeWorkspace.id },
+                { isDefault: true }
+            ]
+        }
+    });
+    const categoryNames = categories.map(c => c.name);
+
+    if (categoryNames.length === 0) {
+        return ctx.reply("В базе нет доступных категорий. Сидинг БД еще не выполнен.");
+    }
+
+    // Запускаем парсинг
+    let parsed;
+    let isFallback = false;
+    try {
+        parsed = await parseExpenseMessage(text, {
+            categories: categoryNames,
+            defaultCurrency: activeWorkspace.defaultCurrency as "RUB" | "USD",
+            currentDate: new Date()
+        });
+    } catch (e) {
+        console.error("AI Error:", e);
+        // Если AI упал (например 503 High Demand), применяем fallback-регулярки
+        parsed = fallbackParse(text, categoryNames, activeWorkspace.defaultCurrency as "RUB" | "USD");
+        isFallback = true;
+    }
+
+    if (!parsed) {
+        if (isFallback) {
+            const htmlErr = `⚠️ <b>Не удалось распознать трату (ИИ недоступен).</b>\n\n` +
+                `Чтобы записать трату сейчас, пожалуйста, используйте строгий формат:\n` +
+                `<code>СУММА ВАЛЮТА КАТЕГОРИЯ КОММЕНТАРИЙ</code> (валюта по умолчанию USD)\n\n` +
+                `💡 <b>Пример:</b>\n` +
+                `<code>500 USD Кафе Двойной эспрессо</code>\n` +
+                `<code>4.5 Кафе</code>`;
+            return ctx.reply(htmlErr, { parse_mode: 'HTML' });
+        } else {
+            return ctx.reply("Не удалось распознать трату. Пожалуйста, используйте строгий формат:\nСУММА ВАЛЮТА КАТЕГОРИЯ КОММЕНТАРИЙ (валюта по умолчанию USD)");
+        }
+    }
+
+    // Сопоставляем результат со строкой из БД
+    const category = categories.find(c => c.name === parsed.category) || categories[0];
+
+    // Создаем временную транзакцию
+    const tempId = Date.now().toString() + Math.floor(Math.random() * 1000).toString();
+    pendingTransactions.set(tempId, {
+        parsed,
+        userId: user.id,
+        workspaceId: activeWorkspace.id,
+        categoryId: category.id,
+        rawText: text,
+        categoryIcon: category.icon
+    });
+
+    // Отправляем на подтверждение
+    const fallbackPrefix = isFallback ? "⚠️ <i>Распознано по строгим правилам (ИИ недоступен):</i>\n\n" : "";
+    const replyText = `${fallbackPrefix}<b>Трата распознана, подтвердите сохранение:</b>\n\n` +
+        `💵 Сумма: ${parsed.amount} ${parsed.currency}\n` +
+        `🏷 Категория: ${category.icon} ${parsed.category}\n` +
+        `💬 Комментарий: ${parsed.comment || 'Без комментария'}\n` +
+        `📅 Дата: ${parsed.date}`;
+
+    try {
+        await ctx.reply(replyText, {
+            parse_mode: 'HTML',
+            reply_markup: {
+                inline_keyboard: [
+                    [
+                        Markup.button.callback('✅ Подтвердить', `confirm_${tempId}`),
+                        Markup.button.callback('❌ Отмена', `cancel_${tempId}`)
+                    ]
+                ]
+            }
+        });
+    } catch (e) {
+        console.error("Reply Error:", e);
+        await ctx.reply("Произошла ошибка при формировании сообщения.");
+    }
+});

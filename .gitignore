@@ -1,0 +1,23 @@
+# Node.js
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Build files
+dist/
+webapp/dist/
+build/
+
+# Environment variables
+.env
+.env.local
+
+# Database
+*.db
+*.sqlite
+prisma/dev.db
+prisma/dev.db-journal
+
+# OS files
+.DS_Store
+Thumbs.db

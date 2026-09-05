@@ -1,0 +1,70 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Workspace {
+  id              String            @id @default(cuid())
+  name            String
+  defaultCurrency String            @default("RUB") // "RUB" | "USD"
+  inviteCode      String            @unique
+  createdAt       DateTime          @default(now())
+  
+  members         WorkspaceMember[]
+  categories      Category[]
+  transactions    Transaction[]
+}
+
+model User {
+  id              String            @id // Telegram user_id
+  username        String?
+  firstName       String?
+  createdAt       DateTime          @default(now())
+  
+  workspaces      WorkspaceMember[]
+  transactions    Transaction[]
+}
+
+model WorkspaceMember {
+  id          String    @id @default(cuid())
+  workspaceId String
+  userId      String
+  role        String    @default("MEMBER") // "OWNER" | "MEMBER"
+  
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+}
+
+model Category {
+  id          String        @id @default(cuid())
+  workspaceId String?
+  name        String
+  icon        String
+  isDefault   Boolean       @default(false)
+  
+  workspace   Workspace?    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+}
+
+model Transaction {
+  id          String    @id @default(cuid())
+  workspaceId String
+  userId      String
+  amount      Float
+  currency    String    @default("RUB") // "RUB" | "USD"
+  categoryId  String
+  comment     String?
+  date        DateTime
+  rawText     String
+  createdAt   DateTime  @default(now())
+  
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category    Category  @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+}
