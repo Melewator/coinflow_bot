@@ -9,7 +9,7 @@
 * **High Reliability:** Engineered with intelligent rate-limiting delays and fallback mechanisms to ensure the bot remains responsive even during periods of high network demand.
 
 ### 🚀 Getting Started
-*(Add brief instructions here on how to clone the repo, set up environment variables, and run the bot locally).*
+
 
 ### 🛠 Tech Stack
 * **Language/Framework:** *(e.g., Node.js / Telegraf)*
