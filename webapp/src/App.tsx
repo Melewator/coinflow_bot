@@ -1,4 +1,3 @@
-import React from 'react';
 import { Wallet, PieChart, ArrowUpRight } from 'lucide-react';
 import WebApp from '@twa-dev/sdk';
 
