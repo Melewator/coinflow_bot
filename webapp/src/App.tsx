@@ -29,7 +29,7 @@ function App() {
             try {
                 // В Telegram userId это число, приводим к строке. '12345' — fallback для десктопа
                 const userId = user?.id?.toString() || '12345';
-                const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+                const apiUrl = (import.meta as any).env?.VITE_API_URL || 'http://localhost:3000/api';
 
                 const response = await axios.get(`${apiUrl}/transactions/${userId}`);
                 setTransactions(response.data);
