@@ -22,13 +22,13 @@ app.get('/api/transactions/:userId', async (req, res) => {
     }
 });
 
-const PORT = process.env.PORT || 3000;
+const PORT = Number(process.env.PORT) || 3000;
 
 function start() {
     console.log("Запуск API сервера и Telegram бота...");
 
     // Запускаем Express сервер до (или параллельно) бота
-    app.listen(Number(PORT), '0.0.0.0', () => {
+    app.listen(PORT, '0.0.0.0', () => {
         console.log(`🌐 API сервер запущен на 0.0.0.0:${PORT}`);
     });
 
