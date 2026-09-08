@@ -88,6 +88,24 @@ bot.start(async (ctx) => {
             include: { workspaces: true }
         });
 
+        const welcomeText = `👋 Привет! Я CoinFlow — твой карманный финансовый ассистент.\n\n` +
+            `⚡️ <b>Быстрая запись на ходу:</b>\n` +
+            `Просто пиши мне в чат сумму и комментарий обычным языком:\n` +
+            `• <code>5 кофе</code>\n` +
+            `• <code>14.5 такси в аэропорт</code>\n` +
+            `• <code>2500 RUB продукты супермаркет</code>\n\n` +
+            `По умолчанию валюта — USD, но ты всегда можешь дописать RUB.\n\n` +
+            `📱 <b>Интерактивный дашборд:</b>\n` +
+            `Нажми кнопку ниже, чтобы открыть полноэкранное приложение. В нем можно:\n` +
+            `• Смотреть баланс и детальную историю\n` +
+            `• Менять категории и суммы трат в один клик\n` +
+            `• Фильтровать и искать по комментариям\n` +
+            `• Выбирать стильные темы оформления`;
+
+        const welcomeMarkup = Markup.inlineKeyboard([
+            Markup.button.webApp('🚀 Открыть дашборд', process.env.WEBAPP_URL || 'https://google.com')
+        ]);
+
         if (!user) {
             // Создаем пользователя и дефолтный Workspace
             user = await prisma.user.create({
@@ -110,18 +128,36 @@ bot.start(async (ctx) => {
                 },
                 include: { workspaces: true }
             });
-            await ctx.reply(`Привет, ${firstName}! Ваш профиль и личная комната учета расходов созданы. Просто пишите мне свои траты, например: "500 на кофе" или "вчера 20$ такси".`, Markup.inlineKeyboard([
-                Markup.button.webApp('📊 Открыть дашборд', process.env.WEBAPP_URL || 'https://google.com')
-            ]));
+            await ctx.reply(welcomeText, { parse_mode: 'HTML', reply_markup: welcomeMarkup.reply_markup });
         } else {
-            await ctx.reply(`С возвращением, ${firstName}! Я готов записывать ваши траты.`, Markup.inlineKeyboard([
-                Markup.button.webApp('📊 Открыть дашборд', process.env.WEBAPP_URL || 'https://google.com')
-            ]));
+            await ctx.reply(`С возвращением, ${firstName}!\n\n${welcomeText}`, { parse_mode: 'HTML', reply_markup: welcomeMarkup.reply_markup });
         }
     } catch (e) {
         console.error("Registration Error:", e);
         await ctx.reply("Произошла ошибка при регистрации. Пожалуйста, попробуйте позже.");
     }
+});
+
+bot.help(async (ctx) => {
+    const helpText = `🛠 <b>Помощь</b>\n\n` +
+        `<b>Основной формат:</b>\n` +
+        `Просто отправь мне текст сообщения: <i>"Сумма, на что и куда"</i>.\n` +
+        `<i>Пример:</i> <code>7.5 кофе Starbucks</code>\n\n` +
+        `Если искусственный интеллект перегружен, бот перейдет в ручной режим.\n` +
+        `<b>Формат строгой (ручной) записи:</b>\n` +
+        `<code>СУММА КАТЕГОРИЯ КОММЕНТАРИЙ</code>\n` +
+        `<i>Пример:</i> <code>20 Еда вкусная пицца</code>\n\n` +
+        `<b>Полезные команды:</b>\n` +
+        `/app — Открыть приложение-дашборд\n` +
+        `/stats — Получить быструю базу по категориям (в чат)\n` +
+        `/help — Это меню`;
+    return ctx.reply(helpText, { parse_mode: 'HTML' });
+});
+
+bot.command('app', async (ctx) => {
+    return ctx.reply("📱 Нажмите на кнопку, чтобы открыть CoinFlow:", Markup.inlineKeyboard([
+        Markup.button.webApp('🚀 Открыть дашборд', process.env.WEBAPP_URL || 'https://google.com')
+    ]));
 });
 
 // Команда статистики за текущий месяц
