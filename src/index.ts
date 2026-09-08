@@ -12,6 +12,17 @@ const app = express();
 app.use(cors({ origin: '*' })); // Разрешаем доступ со всех доменов (включая Netlify и ngrok)
 app.use(express.json());
 
+app.get('/api/user/:userId', async (req, res) => {
+    try {
+        const user = await prisma.user.findUnique({
+            where: { id: req.params.userId }
+        });
+        res.json({ isPro: user?.isPro || false });
+    } catch {
+        res.status(500).json({ error: 'Failed to proxy user status' });
+    }
+});
+
 app.get('/api/transactions/:userId', async (req, res) => {
     const userId = req.params.userId;
     try {
@@ -134,6 +145,29 @@ app.delete('/api/transactions/:id', async (req, res) => {
         res.json({ success: true });
     } catch (e) {
         res.status(500).json({ error: 'Deletion failed' });
+    }
+});
+
+app.post('/api/payments/create-invoice', async (req, res) => {
+    try {
+        const { userId } = req.body;
+        if (!userId) {
+            return res.status(400).json({ error: 'userId is required' });
+        }
+
+        const invoiceLink = await bot.telegram.createInvoiceLink({
+            title: "CoinFlow PRO",
+            description: "Пожизненный доступ к продвинутой аналитике, графикам и премиум-темам",
+            payload: JSON.stringify({ userId: String(userId), plan: "pro_lifetime" }),
+            provider_token: "", // Для Telegram Stars строго пустая строка
+            currency: "XTR",
+            prices: [{ label: "CoinFlow PRO", amount: 25 }] // 25 Telegram Stars
+        });
+
+        res.json({ invoiceLink });
+    } catch (e) {
+        console.error("Invoice Error:", e);
+        res.status(500).json({ error: 'Failed to create invoice' });
     }
 });
 

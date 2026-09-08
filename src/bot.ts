@@ -290,6 +290,37 @@ bot.action(/^edit_(.+)$/, async (ctx) => {
     await ctx.answerCbQuery('Функция редактирования скоро появится!', { show_alert: true });
 });
 
+bot.on('pre_checkout_query', async (ctx) => {
+    await ctx.answerPreCheckoutQuery(true);
+});
+
+bot.on('successful_payment', async (ctx) => {
+    const paymentInfo = ctx.message.successful_payment;
+    try {
+        const payload = JSON.parse(paymentInfo.invoice_payload);
+        const userId = payload.userId;
+
+        await prisma.user.update({
+            where: { id: userId },
+            data: { isPro: true }
+        });
+
+        await prisma.payment.create({
+            data: {
+                userId,
+                telegramPaymentChargeId: paymentInfo.telegram_payment_charge_id,
+                amount: paymentInfo.total_amount,
+                currency: paymentInfo.currency
+            }
+        });
+
+        await ctx.reply("🎉 Поздравляем! Доступ к CoinFlow PRO успешно активирован!");
+    } catch (e) {
+        console.error("Payment error:", e);
+        await ctx.reply("Произошла ошибка при обработке платежа. Пожалуйста, свяжитесь с поддержкой.");
+    }
+});
+
 bot.on(message('text'), async (ctx) => {
     const text = ctx.message.text;
 

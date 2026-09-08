@@ -46,6 +46,10 @@ function App() {
     const [themeModalOpen, setThemeModalOpen] = useState(false);
     const [currentTheme, setCurrentTheme] = useState(localStorage.getItem('coinflow-theme') || 'default');
 
+    // PRO Статус
+    const [isPro, setIsPro] = useState(false);
+    const [proModalOpen, setProModalOpen] = useState(false);
+
     const rawUrl = (import.meta as any).env?.VITE_API_URL || 'https://coinflow-bot.onrender.com/api';
     const API_BASE_URL = rawUrl.replace(/\/+$/, '');
 
@@ -77,8 +81,12 @@ function App() {
                 setCategories(catsRes.data);
 
                 if (userId) {
-                    const txRes = await axios.get(`${API_BASE_URL}/transactions/${userId}`);
+                    const [txRes, userRes] = await Promise.all([
+                        axios.get(`${API_BASE_URL}/transactions/${userId}`),
+                        axios.get(`${API_BASE_URL}/user/${userId}`)
+                    ]);
                     setTransactions(txRes.data);
+                    setIsPro(userRes.data?.isPro || false);
                 }
             } catch (err) {
                 console.error("Data load error:", err);
@@ -117,12 +125,45 @@ function App() {
 
     const handleTabClick = (tab: 'finance' | 'charts') => {
         if (tab === 'charts') {
-            triggerHaptic('warning');
-            alert('Аналитика и графики будут доступны в следующем обновлении');
+            triggerHaptic('selection');
+            if (!isPro) {
+                setProModalOpen(true);
+                return;
+            }
+            setActiveTab('charts');
             return;
         }
         triggerHaptic('selection');
         setActiveTab(tab);
+    };
+
+    const handleBuyPro = async () => {
+        triggerHaptic('selection');
+        try {
+            const res = await axios.post(`${API_BASE_URL}/payments/create-invoice`, { userId });
+            const { invoiceLink } = res.data;
+
+            const tg = (window as any).Telegram?.WebApp;
+            if (tg && tg.openInvoice) {
+                tg.openInvoice(invoiceLink, (status: string) => {
+                    if (status === 'paid') {
+                        triggerHaptic('success');
+                        setIsPro(true);
+                        setProModalOpen(false);
+                        setActiveTab('charts');
+                    } else {
+                        triggerHaptic('warning');
+                        console.log('Оплата отменена или не удалась');
+                    }
+                });
+            } else {
+                alert("Функция оплаты недоступна в текущем окружении Телеграм.");
+            }
+        } catch (e) {
+            console.error(e);
+            triggerHaptic('error');
+            alert('Ошибка сервера при создании платежа');
+        }
     };
 
     const handleOpenModal = (tx: Transaction | null = null) => {
@@ -220,7 +261,7 @@ function App() {
                     onClick={() => handleTabClick('charts')}
                     className={`px-5 py-2.5 rounded-t-2xl font-bold transition-colors flex items-center gap-1.5 ${activeTab === 'charts' ? 'bg-[var(--app-card-bg)] text-[var(--app-text)]' : 'bg-[var(--app-card-bg)]/50 text-[var(--app-hint)] mt-1'}`}
                 >
-                    Графики <Lock size={14} />
+                    Графики {!isPro && <Lock size={14} />}
                 </button>
             </div>
 
@@ -447,6 +488,41 @@ function App() {
                                 Сохранить
                             </button>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ПРО Модалка */}
+            {proModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-sm"
+                    onClick={(e) => { if (e.target === e.currentTarget) setProModalOpen(false); }}>
+                    <div className="bg-[var(--app-card-bg)] w-full max-w-md rounded-t-3xl p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] shadow-2xl animate-[slideUp_0.3s_ease-out]">
+                        <div className="flex items-center justify-between mb-5">
+                            <h2 className="text-xl font-extrabold text-[var(--app-text)] tracking-tight">Разблокируйте PRO</h2>
+                            <button onClick={() => setProModalOpen(false)} className="p-2 bg-[var(--app-bg)] text-[var(--app-hint)] rounded-full">
+                                <X size={20} />
+                            </button>
+                        </div>
+                        <div className="flex flex-col gap-3 mb-6 font-medium text-[var(--app-text)]">
+                            <div className="flex items-center gap-3">
+                                <span className="text-[var(--app-button)] text-xl">💎</span>
+                                <span>Пожизненный доступ к аналитике</span>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <span className="text-[var(--app-button)] text-xl">🚀</span>
+                                <span>Продвинутые графики и диаграммы</span>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <span className="text-[var(--app-button)] text-xl">🎨</span>
+                                <span>Премиум темы (эксклюзив)</span>
+                            </div>
+                        </div>
+                        <button
+                            onClick={handleBuyPro}
+                            className="w-full py-4 bg-[#212121] text-white rounded-[16px] font-bold text-[17px] active:scale-[0.98] transition-transform flex items-center justify-center gap-2"
+                        >
+                            ⭐️ Купить за 25 XTR
+                        </button>
                     </div>
                 </div>
             )}
