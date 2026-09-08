@@ -2,11 +2,66 @@
 @tailwind components;
 @tailwind utilities;
 
+@property --app-bg {
+  syntax: '*';
+  inherits: true;
+}
+
+:root {
+  /* Базовая тема (наследуется из Telegram, если не переопределена) */
+  --app-bg: var(--tg-theme-secondary-bg-color, #f3f4f6);
+  --app-card-bg: var(--tg-theme-bg-color, #ffffff);
+  --app-text: var(--tg-theme-text-color, #111827);
+  --app-hint: var(--tg-theme-hint-color, #6b7280);
+  --app-button: var(--tg-theme-button-color, #3b82f6);
+  --app-button-text: var(--tg-theme-button-text-color, #ffffff);
+  --app-border: var(--tg-theme-hint-color, #e5e7eb);
+}
+
+[data-theme="dark-slate"] {
+  --app-bg: #1e1e24;
+  --app-card-bg: #2b2b36;
+  --app-text: #f8f8f2;
+  --app-hint: #a1a1aa;
+  --app-button: #6366f1;
+  --app-button-text: #ffffff;
+  --app-border: #3f3f46;
+}
+
+[data-theme="oled"] {
+  --app-bg: #000000;
+  --app-card-bg: #0a0a0a;
+  --app-text: #ffffff;
+  --app-hint: #71717a;
+  --app-button: #22d3ee;
+  --app-button-text: #000000;
+  --app-border: #27272a;
+}
+
+[data-theme="emerald"] {
+  --app-bg: #022c22;
+  --app-card-bg: #064e3b;
+  --app-text: #ecfdf5;
+  --app-hint: #a7f3d0;
+  --app-button: #10b981;
+  --app-button-text: #ffffff;
+  --app-border: #047857;
+}
+
+[data-theme="light"] {
+  --app-bg: #f8fafc;
+  --app-card-bg: #ffffff;
+  --app-text: #0f172a;
+  --app-hint: #64748b;
+  --app-button: #3b82f6;
+  --app-button-text: #ffffff;
+  --app-border: #e2e8f0;
+}
+
 @layer base {
   body {
-    /* Фолдбэк-цвета на случай, если приложение открыто вне телеграма */
-    background-color: var(--tg-theme-bg-color, #ffffff);
-    color: var(--tg-theme-text-color, #000000);
+    background-color: var(--app-bg);
+    color: var(--app-text);
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   }
 }
