@@ -92,37 +92,36 @@ export async function parseExpenseMessage(text: string, options: ParseExpenseOpt
 }
 
 export function fallbackParse(text: string, categories: string[], defaultCurrency: "RUB" | "USD" = "USD"): ParsedExpense | null {
-    // Регулярное выражение: [СУММА] [ВАЛЮТА (опционально)] [КАТЕГОРИЯ] [КОММЕНТАРИЙ (опционально)]
-    // Допустимые символы суммы: цифры, точка, запятая
-    const regex = /^([\d.,]+)\s*([A-Za-zА-Яа-я\$€]+)?\s+([A-Za-zА-Яа-я]+)(?:\s+(.+))?$/i;
-    const match = text.trim().match(regex);
+    // Формат ввода: [Сумма] [Категория] [Остальной текст как комментарий]
+    const parts = text.trim().split(/\s+/);
 
-    if (!match) return null;
+    // Как минимум сумма и категория
+    if (parts.length < 2) return null;
 
-    const amountStr = match[1].replace(',', '.');
+    const amountStr = parts[0].replace(',', '.').replace(/[^\d.]/g, '');
     const amount = parseFloat(amountStr);
 
     if (isNaN(amount) || amount <= 0) return null;
 
-    let currencyStr = match[2];
-    let parsedCurrency: "RUB" | "USD" = "USD"; // Жестко используем USD как просил пользователь
+    // Валюта всегда USD по умолчанию (по просьбе пользователя)
+    let parsedCurrency: "RUB" | "USD" = "USD";
 
-    if (currencyStr) {
-        const c = currencyStr.toLowerCase();
-        if (['rub', 'руб', 'р', '₽'].includes(c)) {
-            parsedCurrency = 'RUB';
-        } else if (['usd', 'доллар', 'баксы', '$'].includes(c)) {
-            parsedCurrency = 'USD';
-        }
+    const categoryInput = parts[1];
+    // Пытаемся найти запрошенную категорию
+    let categoryMatch = categories.find(c => c.toLowerCase() === categoryInput.toLowerCase());
+
+    // Если категория не найдена — ставим "Другое"
+    if (!categoryMatch) {
+        categoryMatch = categories.find(c => c.toLowerCase() === 'другое') || categories[0];
     }
 
-    const categoryInput = match[3];
-    // Пытаемся найти строгую категорию по имени 
-    const categoryMatch = categories.find(c => c.toLowerCase() === categoryInput.toLowerCase());
+    // Комментарий из оставшихся слов
+    let comment = parts.slice(2).join(' ');
+    if (!comment) {
+        // Если слов после категории нет, комментарием становится название категории
+        comment = categoryMatch;
+    }
 
-    if (!categoryMatch) return null; // Если категория из регулярки не совпала ни с одной из БД, отклоняем парсинг
-
-    const comment = match[4] || '';
     const date = new Date().toISOString().split('T')[0];
 
     return {
