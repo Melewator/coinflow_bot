@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
-import { Wallet, Plus, X, Trash2, Lock, Search, ArrowDownUp, Check } from 'lucide-react';
+import { Wallet, Plus, X, Trash2, Lock, Search, ArrowDownUp, Check, Download } from 'lucide-react';
 import axios from 'axios';
 
 interface Category {
@@ -241,6 +241,79 @@ function App() {
         }
     };
 
+    const [chartsPeriod, setChartsPeriod] = useState<'month' | 'last_month' | 'all'>('month');
+    const [chartsCurrency, setChartsCurrency] = useState<'USD' | 'RUB'>('USD');
+    const CHART_COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4', '#F97316'];
+
+    const analyticsData = useMemo(() => {
+        const now = new Date();
+        const filtered = transactions.filter(tx => {
+            if (tx.currency !== chartsCurrency) return false;
+            const txDate = new Date(tx.date);
+            if (chartsPeriod === 'month') {
+                return txDate.getFullYear() === now.getFullYear() && txDate.getMonth() === now.getMonth();
+            } else if (chartsPeriod === 'last_month') {
+                const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+                return txDate.getFullYear() === lastMonth.getFullYear() && txDate.getMonth() === lastMonth.getMonth();
+            }
+            return true;
+        });
+
+        const total = filtered.reduce((acc, tx) => acc + tx.amount, 0);
+
+        const catMap = new Map();
+        filtered.forEach(tx => {
+            const id = tx.category?.id || 'unknown';
+            const existing = catMap.get(id) || { name: tx.category?.name || 'Неизвестно', icon: tx.category?.icon || '?', amount: 0 };
+            existing.amount += tx.amount;
+            catMap.set(id, existing);
+        });
+        const categoriesList = Array.from(catMap.values()).sort((a, b) => b.amount - a.amount);
+        const topCategory = categoriesList[0];
+
+        let days = 1;
+        if (chartsPeriod === 'month') {
+            days = Math.max(1, now.getDate());
+        } else if (chartsPeriod === 'last_month') {
+            days = new Date(now.getFullYear(), now.getMonth(), 0).getDate();
+        } else {
+            if (filtered.length > 0) {
+                const minDate = Math.min(...filtered.map(t => new Date(t.date).getTime()));
+                const maxDate = Math.max(...filtered.map(t => new Date(t.date).getTime()));
+                days = Math.max(1, Math.ceil((maxDate - minDate) / (1000 * 60 * 60 * 24)));
+            }
+        }
+        const avgPerDay = total / days;
+
+        const dailyMap = new Map();
+        filtered.forEach(tx => {
+            const d = new Date(tx.date).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
+            const raw = new Date(tx.date).toISOString().split('T')[0];
+            const existing = dailyMap.get(raw) || { day: d, amount: 0, raw };
+            existing.amount += tx.amount;
+            dailyMap.set(raw, existing);
+        });
+        const dailyList = Array.from(dailyMap.values()).sort((a, b) => a.raw.localeCompare(b.raw));
+        const maxDaily = Math.max(...dailyList.map(d => d.amount), 0);
+
+        return { filtered, total, avgPerDay, topCategory, categoriesList, dailyList, maxDaily };
+    }, [transactions, chartsPeriod, chartsCurrency]);
+
+    const exportCSV = () => {
+        triggerHaptic('success');
+        const header = "Date,Category,Amount,Currency,Comment\n";
+        const rows = analyticsData.filtered.map(tx =>
+            `"${new Date(tx.date).toLocaleDateString('ru-RU')}","${tx.category?.name || ''}",${tx.amount},"${tx.currency}","${(tx.comment || '').replace(/"/g, '""')}"`
+        ).join("\n");
+        const blob = new Blob([header + rows], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `coinflow_export_${chartsPeriod}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+    };
+
     const displayedTransactions = useMemo(() => {
         let filtered = transactions.filter(t => {
             const matchSearch = (t.comment || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -287,103 +360,245 @@ function App() {
                 </button>
             </div>
 
-            <div className="flex flex-col gap-5 bg-[var(--app-card-bg)] rounded-3xl rounded-tl-none p-5 shadow-sm border border-[var(--app-border)]/40 transition-colors">
+            {activeTab === 'finance' && (
+                <>
+                    <div className="flex flex-col gap-5 bg-[var(--app-card-bg)] rounded-3xl rounded-tl-none p-5 shadow-sm border border-[var(--app-border)]/40 transition-colors">
 
-                <header className="flex items-center justify-between">
-                    <div className="flex flex-col">
-                        <h1 className="text-[var(--app-text)] text-2xl font-bold tracking-tight">
-                            Баланс
-                        </h1>
-                        <p className="text-[var(--app-hint)] text-sm mt-0.5">
-                            {tgUser?.first_name ? `Привет, ${tgUser.first_name}!` : 'Демо-режим'}
-                        </p>
-                    </div>
-                    <button
-                        onClick={() => { triggerHaptic('selection'); setThemeModalOpen(true); }}
-                        className="w-12 h-12 bg-gradient-to-tr from-[var(--app-button)] to-[var(--app-button)]/70 text-[var(--app-button-text)] rounded-full flex items-center justify-center shadow-lg active:scale-95 transition-transform"
-                    >
-                        <Wallet size={24} />
-                    </button>
-                </header>
+                        <header className="flex items-center justify-between">
+                            <div className="flex flex-col">
+                                <h1 className="text-[var(--app-text)] text-2xl font-bold tracking-tight">
+                                    Баланс
+                                </h1>
+                                <p className="text-[var(--app-hint)] text-sm mt-0.5">
+                                    {tgUser?.first_name ? `Привет, ${tgUser.first_name}!` : 'Демо-режим'}
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => { triggerHaptic('selection'); setThemeModalOpen(true); }}
+                                className="w-12 h-12 bg-gradient-to-tr from-[var(--app-button)] to-[var(--app-button)]/70 text-[var(--app-button-text)] rounded-full flex items-center justify-center shadow-lg active:scale-95 transition-transform"
+                            >
+                                <Wallet size={24} />
+                            </button>
+                        </header>
 
-                <div>
-                    <h2 className="text-[var(--app-hint)] text-sm font-medium mb-1">Сумма трат ({currencyFilter === 'ALL' ? 'MIX' : currencyFilter})</h2>
-                    <div className="text-4xl font-extrabold text-[var(--app-text)] tracking-tight overflow-hidden text-ellipsis whitespace-nowrap">
-                        {displayAmount} {currencyFilter !== 'ALL' ? currencyFilter : ''}
-                    </div>
-                </div>
-
-                {/* Filters */}
-                <div className="flex flex-col gap-3 mt-2">
-                    <div className="flex bg-[var(--app-bg)] rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-[var(--app-button)] transition-shadow">
-                        <div className="pl-3 flex items-center text-[var(--app-hint)]">
-                            <Search size={18} />
+                        <div>
+                            <h2 className="text-[var(--app-hint)] text-sm font-medium mb-1">Сумма трат ({currencyFilter === 'ALL' ? 'MIX' : currencyFilter})</h2>
+                            <div className="text-4xl font-extrabold text-[var(--app-text)] tracking-tight overflow-hidden text-ellipsis whitespace-nowrap">
+                                {displayAmount} {currencyFilter !== 'ALL' ? currencyFilter : ''}
+                            </div>
                         </div>
-                        <input
-                            type="text"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            placeholder="Поиск по тратам..."
-                            className="w-full bg-transparent text-[var(--app-text)] text-sm px-3 py-2.5 outline-none"
-                        />
+
+                        {/* Filters */}
+                        <div className="flex flex-col gap-3 mt-2">
+                            <div className="flex bg-[var(--app-bg)] rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-[var(--app-button)] transition-shadow">
+                                <div className="pl-3 flex items-center text-[var(--app-hint)]">
+                                    <Search size={18} />
+                                </div>
+                                <input
+                                    type="text"
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    placeholder="Поиск по тратам..."
+                                    className="w-full bg-transparent text-[var(--app-text)] text-sm px-3 py-2.5 outline-none"
+                                />
+                            </div>
+
+                            <div className="flex justify-between items-center gap-2">
+                                <button
+                                    onClick={cycleSortMode}
+                                    className="flex items-center gap-1.5 px-3 py-2 bg-[var(--app-bg)] text-[var(--app-text)] rounded-lg text-xs font-semibold active:scale-95 transition-all"
+                                >
+                                    <ArrowDownUp size={14} />
+                                    {getSortLabel()}
+                                </button>
+
+                                <div className="flex bg-[var(--app-bg)] rounded-lg p-0.5">
+                                    {(['ALL', 'USD', 'RUB'] as const).map(cur => (
+                                        <button
+                                            key={cur}
+                                            onClick={() => { triggerHaptic('selection'); setCurrencyFilter(cur); }}
+                                            className={`px-3 py-1.5 text-xs font-bold rounded-md transition-colors ${currencyFilter === cur ? 'bg-[var(--app-card-bg)] text-[var(--app-text)] shadow-sm' : 'text-[var(--app-hint)]'}`}
+                                        >
+                                            {cur}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
-                    <div className="flex justify-between items-center gap-2">
-                        <button
-                            onClick={cycleSortMode}
-                            className="flex items-center gap-1.5 px-3 py-2 bg-[var(--app-bg)] text-[var(--app-text)] rounded-lg text-xs font-semibold active:scale-95 transition-all"
-                        >
-                            <ArrowDownUp size={14} />
-                            {getSortLabel()}
-                        </button>
+                    <div className="flex flex-col gap-3 flex-1 pb-4">
+                        {loading ? (
+                            <div className="text-center text-[var(--app-hint)] py-4">Загрузка...</div>
+                        ) : displayedTransactions.length === 0 ? (
+                            <div className="text-center text-[var(--app-hint)] py-4">Ничего не найдено.</div>
+                        ) : (
+                            displayedTransactions.map((tx) => (
+                                <div
+                                    key={tx.id}
+                                    onClick={() => handleOpenModal(tx)}
+                                    className="cursor-pointer bg-[var(--app-card-bg)] rounded-[20px] p-4 flex items-center justify-between shadow-sm border border-transparent active:border-[var(--app-button)] active:scale-[0.98] transition-all"
+                                >
+                                    <div className="flex items-center gap-4 min-w-0">
+                                        <div className="w-[46px] h-[46px] flex-shrink-0 rounded-[16px] bg-[var(--app-bg)] flex items-center justify-center text-xl shadow-inner">
+                                            {tx.category?.icon || '🏷️'}
+                                        </div>
+                                        <div className="flex flex-col min-w-0 pr-2">
+                                            <span className="font-bold text-[var(--app-text)] text-[15px] truncate">{tx.category?.name || 'Без категории'}</span>
+                                            <span className="text-[12px] text-[var(--app-hint)] font-medium truncate">
+                                                {tx.comment || formatDate(tx.date)}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-col items-end flex-shrink-0 pl-1">
+                                        <span className="font-extrabold text-[16px] text-[var(--app-text)] whitespace-nowrap">
+                                            -{tx.amount} <span className="text-[14px] text-[var(--app-hint)] opacity-80">{tx.currency}</span>
+                                        </span>
+                                    </div>
+                                </div>
+                            ))
+                        )}
+                    </div>
+                </>
+            )}
 
+            {activeTab === 'charts' && (
+                <div className="flex flex-col gap-6 bg-[var(--app-card-bg)] rounded-3xl rounded-tl-none p-5 shadow-sm border border-[var(--app-border)]/40 transition-colors pb-8 min-h-[70vh]">
+                    {/* Charts Filters */}
+                    <div className="flex justify-between items-center gap-2">
+                        <select
+                            value={chartsPeriod}
+                            onChange={e => setChartsPeriod(e.target.value as any)}
+                            className="bg-[var(--app-bg)] text-[var(--app-text)] font-semibold text-sm px-3 py-2 rounded-lg outline-none border-none focus:ring-2 focus:ring-[var(--app-button)]"
+                        >
+                            <option value="month">Этот месяц</option>
+                            <option value="last_month">Прошлый месяц</option>
+                            <option value="all">Всё время</option>
+                        </select>
                         <div className="flex bg-[var(--app-bg)] rounded-lg p-0.5">
-                            {(['ALL', 'USD', 'RUB'] as const).map(cur => (
+                            {(['USD', 'RUB'] as const).map(cur => (
                                 <button
                                     key={cur}
-                                    onClick={() => { triggerHaptic('selection'); setCurrencyFilter(cur); }}
-                                    className={`px-3 py-1.5 text-xs font-bold rounded-md transition-colors ${currencyFilter === cur ? 'bg-[var(--app-card-bg)] text-[var(--app-text)] shadow-sm' : 'text-[var(--app-hint)]'}`}
+                                    onClick={() => { triggerHaptic('selection'); setChartsCurrency(cur); }}
+                                    className={`px-3 py-1.5 text-xs font-bold rounded-md transition-colors ${chartsCurrency === cur ? 'bg-[var(--app-button)] text-[var(--app-button-text)] shadow-sm' : 'text-[var(--app-hint)]'}`}
                                 >
                                     {cur}
                                 </button>
                             ))}
                         </div>
                     </div>
-                </div>
-            </div>
 
-            <div className="flex flex-col gap-3 flex-1 pb-4">
-                {loading ? (
-                    <div className="text-center text-[var(--app-hint)] py-4">Загрузка...</div>
-                ) : displayedTransactions.length === 0 ? (
-                    <div className="text-center text-[var(--app-hint)] py-4">Ничего не найдено.</div>
-                ) : (
-                    displayedTransactions.map((tx) => (
-                        <div
-                            key={tx.id}
-                            onClick={() => handleOpenModal(tx)}
-                            className="cursor-pointer bg-[var(--app-card-bg)] rounded-[20px] p-4 flex items-center justify-between shadow-sm border border-transparent active:border-[var(--app-button)] active:scale-[0.98] transition-all"
-                        >
-                            <div className="flex items-center gap-4 min-w-0">
-                                <div className="w-[46px] h-[46px] flex-shrink-0 rounded-[16px] bg-[var(--app-bg)] flex items-center justify-center text-xl shadow-inner">
-                                    {tx.category?.icon || '🏷️'}
-                                </div>
-                                <div className="flex flex-col min-w-0 pr-2">
-                                    <span className="font-bold text-[var(--app-text)] text-[15px] truncate">{tx.category?.name || 'Без категории'}</span>
-                                    <span className="text-[12px] text-[var(--app-hint)] font-medium truncate">
-                                        {tx.comment || formatDate(tx.date)}
-                                    </span>
-                                </div>
-                            </div>
-                            <div className="flex flex-col items-end flex-shrink-0 pl-1">
-                                <span className="font-extrabold text-[16px] text-[var(--app-text)] whitespace-nowrap">
-                                    -{tx.amount} <span className="text-[14px] text-[var(--app-hint)] opacity-80">{tx.currency}</span>
-                                </span>
-                            </div>
+                    {analyticsData.filtered.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center flex-1 text-centeropacity-70 py-10 mt-10">
+                            <div className="text-4xl mb-3 opacity-50">📂</div>
+                            <span className="text-[var(--app-hint)] font-medium text-sm">За выбранный период трат не найдено</span>
                         </div>
-                    ))
-                )}
-            </div>
+                    ) : (
+                        <>
+                            {/* KPI Board */}
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="bg-[var(--app-bg)] p-3 rounded-2xl flex flex-col items-start min-w-0">
+                                    <span className="text-[10px] text-[var(--app-hint)] uppercase font-bold tracking-wider mb-1">Всего потрачено</span>
+                                    <span className="text-[var(--app-text)] font-extrabold text-lg truncate w-full">{analyticsData.total.toLocaleString('ru-RU')} {chartsCurrency}</span>
+                                </div>
+                                <div className="bg-[var(--app-bg)] p-3 rounded-2xl flex flex-col items-start min-w-0">
+                                    <span className="text-[10px] text-[var(--app-hint)] uppercase font-bold tracking-wider mb-1">В среднем в день</span>
+                                    <span className="text-[var(--app-text)] font-extrabold text-lg truncate w-full">{Math.round(analyticsData.avgPerDay).toLocaleString('ru-RU')} {chartsCurrency}</span>
+                                </div>
+                                <div className="bg-[var(--app-bg)] p-3 rounded-2xl flex flex-col items-start min-w-0 col-span-2">
+                                    <span className="text-[10px] text-[var(--app-hint)] uppercase font-bold tracking-wider mb-1">Главная статья трат</span>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-xl">{analyticsData.topCategory.icon}</span>
+                                        <div className="flex flex-col">
+                                            <span className="text-[var(--app-text)] font-bold text-sm w-full">{analyticsData.topCategory.name}</span>
+                                            <span className="text-[var(--app-button)] text-xs font-semibold">{Math.round((analyticsData.topCategory.amount / analyticsData.total) * 100)}% от пула</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Donut Chart Block */}
+                            <div className="flex flex-col items-center justify-center py-4 bg-[var(--app-bg)] rounded-3xl relative">
+                                <h3 className="w-full pl-5 mb-2 text-[var(--app-text)] font-bold text-sm text-left opacity-90">Распределение</h3>
+
+                                <div className="relative w-48 h-48 mt-4 flex items-center justify-center">
+                                    <svg viewBox="0 0 42 42" className="w-full h-full -rotate-90 filter drop-shadow-md">
+                                        <circle cx="21" cy="21" r="15.91549430918954" fill="transparent" stroke="var(--app-border)" strokeWidth="3" className="opacity-10"></circle>
+                                        {(() => {
+                                            let offset = 0;
+                                            return analyticsData.categoriesList.map((cat, i) => {
+                                                const ratio = (cat.amount / analyticsData.total) * 100;
+                                                const dasharray = `${ratio} ${100 - ratio}`;
+                                                const dashoffset = 100 - offset;
+                                                offset += ratio;
+                                                return (
+                                                    <circle
+                                                        key={cat.name} cx="21" cy="21" r="15.91549430918954"
+                                                        fill="transparent"
+                                                        stroke={CHART_COLORS[i % CHART_COLORS.length]}
+                                                        strokeWidth="4"
+                                                        strokeDasharray={dasharray}
+                                                        strokeDashoffset={dashoffset}
+                                                        strokeLinecap="round"
+                                                        className="transition-all duration-1000 ease-out"
+                                                    />
+                                                );
+                                            });
+                                        })()}
+                                    </svg>
+                                    <div className="absolute flex flex-col items-center justify-center text-center max-w-[60%]">
+                                        <span className="text-[var(--app-hint)] text-[10px] uppercase font-bold tracking-widest">Итог</span>
+                                        <span className="text-[var(--app-text)] font-black text-xl truncate">{analyticsData.total.toLocaleString('ru')}</span>
+                                    </div>
+                                </div>
+
+                                <div className="flex flex-col gap-2 w-full mt-6 px-4">
+                                    {analyticsData.categoriesList.map((cat, i) => (
+                                        <div key={cat.name} className="flex justify-between items-center text-sm font-medium">
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }}></div>
+                                                <span className="text-[var(--app-text)] opacity-90">{cat.icon} {cat.name}</span>
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <span className="text-[var(--app-text)] font-semibold text-right">{cat.amount.toLocaleString()} {chartsCurrency}</span>
+                                                <span className="text-[var(--app-hint)] text-xs w-8 text-right font-bold opacity-60">{Math.round((cat.amount / analyticsData.total) * 100)}%</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Bar Chart Timeline */}
+                            <div className="bg-[var(--app-bg)] p-5 rounded-3xl flex flex-col gap-2 items-center justify-end h-40">
+                                <h3 className="w-full text-[var(--app-text)] font-bold text-sm text-left mb-auto">Динамика по дням</h3>
+                                <div className="flex items-end justify-between w-full h-[80px] gap-1 group relative">
+                                    {analyticsData.dailyList.map(d => {
+                                        const height = Math.max(8, (d.amount / analyticsData.maxDaily) * 100);
+                                        return (
+                                            <div key={d.day} className="flex flex-col items-center flex-1 justify-end group/bar relative">
+                                                <div
+                                                    className="w-full max-w-[12px] bg-[var(--app-button)] rounded-sm transition-all duration-500 ease-out hover:bg-opacity-80 cursor-pointer"
+                                                    style={{ height: `${height}%` }}
+                                                ></div>
+                                                <div className="absolute bottom-[calc(100%+6px)] hidden group-hover/bar:flex bg-black/80 text-white text-[10px] font-bold px-1.5 py-0.5 rounded pointer-events-none whitespace-nowrap z-10 transition-opacity">
+                                                    {d.day}: {d.amount} {chartsCurrency}
+                                                </div>
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            </div>
+
+                            <button
+                                onClick={exportCSV}
+                                className="mt-2 w-full py-3.5 bg-green-500/10 text-green-600 dark:text-green-500 rounded-[16px] font-bold text-[15px] active:scale-[0.98] transition-transform flex items-center justify-center gap-2"
+                            >
+                                <Download size={18} /> Экспорт в CSV
+                            </button>
+                        </>
+                    )}
+                </div>
+            )}
 
             <footer className="mt-auto pt-6 pb-2">
                 <p className="text-xs font-semibold text-[var(--app-hint)] text-center tracking-wide opacity-50">
