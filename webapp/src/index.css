@@ -20,3 +20,13 @@
     transform: translateY(0);
   }
 }
+
+/* Скрытие бейджа Netlify */
+[data-netlify-badge],
+.netlify-badge,
+iframe[src*="netlify"] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}

@@ -109,13 +109,14 @@ app.post('/api/transactions', async (req, res) => {
 
 app.put('/api/transactions/:id', async (req, res) => {
     try {
-        const { amount, categoryId, comment } = req.body;
+        const { amount, categoryId, comment, currency } = req.body;
         const tx = await prisma.transaction.update({
             where: { id: req.params.id },
             data: {
                 amount: amount ? parseFloat(amount) : undefined,
                 categoryId,
-                comment
+                comment,
+                currency
             },
             include: { category: true }
         });

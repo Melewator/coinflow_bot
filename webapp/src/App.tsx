@@ -30,7 +30,7 @@ function App() {
     // Стейт для модалки редактирования/добавления
     const [modalOpen, setModalOpen] = useState(false);
     const [editingTx, setEditingTx] = useState<Transaction | null>(null);
-    const [formData, setFormData] = useState({ amount: '', categoryId: '', comment: '' });
+    const [formData, setFormData] = useState({ amount: '', categoryId: '', comment: '', currency: 'USD' });
 
     const rawUrl = (import.meta as any).env?.VITE_API_URL || 'https://coinflow-bot.onrender.com/api';
     const API_BASE_URL = rawUrl.replace(/\/+$/, '');
@@ -66,10 +66,10 @@ function App() {
     const handleOpenModal = (tx: Transaction | null = null) => {
         if (tx) {
             setEditingTx(tx);
-            setFormData({ amount: tx.amount.toString(), categoryId: tx.category?.id || '', comment: tx.comment || '' });
+            setFormData({ amount: tx.amount.toString(), categoryId: tx.category?.id || '', comment: tx.comment || '', currency: tx.currency || 'USD' });
         } else {
             setEditingTx(null);
-            setFormData({ amount: '', categoryId: categories[0]?.id || '', comment: '' });
+            setFormData({ amount: '', categoryId: categories[0]?.id || '', comment: '', currency: 'USD' });
         }
         setModalOpen(true);
     };
@@ -193,6 +193,13 @@ function App() {
                 </div>
             </div>
 
+            {/* Футер */}
+            <footer className="mt-auto pt-10 pb-4">
+                <p className="text-xs font-semibold text-[var(--tg-theme-hint-color,#9ca3af)] text-center tracking-wide opacity-70">
+                    CoinFlow v1.0 • 2026
+                </p>
+            </footer>
+
             {/* Плавающая кнопка добавить (FAB) */}
             <button
                 onClick={() => handleOpenModal()}
@@ -205,26 +212,42 @@ function App() {
             {modalOpen && (
                 <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-sm"
                     onClick={(e) => { if (e.target === e.currentTarget) setModalOpen(false); }}>
-                    <div className="bg-[var(--tg-theme-bg-color,#ffffff)] w-full max-w-md rounded-t-3xl p-6 shadow-2xl safe-area-bottom animate-[slideUp_0.3s_ease-out]">
+                    <div className="bg-[var(--tg-theme-bg-color,#ffffff)] w-full max-w-md rounded-t-3xl p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] shadow-2xl animate-[slideUp_0.3s_ease-out]">
                         <div className="flex items-center justify-between mb-6">
                             <h2 className="text-xl font-bold text-[var(--tg-theme-text-color,#111827)] whitespace-nowrap">
                                 {editingTx ? 'Редактировать' : 'Новый расход'}
                             </h2>
-                            <button onClick={() => setModalOpen(false)} className="p-2 bg-[var(--tg-theme-secondary-bg-color,#f3f4f6)] text-[var(--tg-theme-hint-color,#6b7280)] rounded-full">
+                            <button onClick={() => setModalOpen(false)} className="p-2 bg-[var(--tg-theme-secondary-bg-color,#f3f4f6)] text-[var(--tg-theme-hint-color,#6b7280)] rounded-full active:scale-90 transition-transform">
                                 <X size={20} />
                             </button>
                         </div>
 
                         <div className="flex flex-col gap-4 mb-6">
                             <div>
-                                <label className="block text-xs font-semibold text-[var(--tg-theme-hint-color,#6b7280)] mb-1 uppercase tracking-wider">Сумма (USD)</label>
-                                <input
-                                    type="number"
-                                    value={formData.amount}
-                                    onChange={e => setFormData({ ...formData, amount: e.target.value })}
-                                    className="w-full bg-[var(--tg-theme-secondary-bg-color,#f3f4f6)] text-[var(--tg-theme-text-color,#111827)] text-lg px-4 py-3 rounded-xl border-none outline-none focus:ring-2 focus:ring-[var(--tg-theme-button-color,#3b82f6)]"
-                                    placeholder="0.00"
-                                />
+                                <label className="block text-xs font-semibold text-[var(--tg-theme-hint-color,#6b7280)] mb-1 uppercase tracking-wider">Сумма</label>
+                                <div className="flex bg-[var(--tg-theme-secondary-bg-color,#f3f4f6)] rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-[var(--tg-theme-button-color,#3b82f6)] transition-shadow">
+                                    <input
+                                        type="number"
+                                        value={formData.amount}
+                                        onChange={e => setFormData({ ...formData, amount: e.target.value })}
+                                        className="w-full bg-transparent text-[var(--tg-theme-text-color,#111827)] text-lg px-4 py-3 border-none outline-none"
+                                        placeholder="0.00"
+                                    />
+                                    <div className="flex border-l border-[var(--tg-theme-hint-color,#e5e7eb)]/30">
+                                        <button
+                                            onClick={() => setFormData({ ...formData, currency: 'USD' })}
+                                            className={`px-4 font-bold text-sm transition-colors ${formData.currency === 'USD' ? 'bg-[var(--tg-theme-button-color,#3b82f6)] text-[var(--tg-theme-button-text-color,#ffffff)]' : 'text-[var(--tg-theme-hint-color,#6b7280)] active:bg-black/5'}`}
+                                        >
+                                            USD
+                                        </button>
+                                        <button
+                                            onClick={() => setFormData({ ...formData, currency: 'RUB' })}
+                                            className={`px-4 font-bold text-sm transition-colors ${formData.currency === 'RUB' ? 'bg-[var(--tg-theme-button-color,#3b82f6)] text-[var(--tg-theme-button-text-color,#ffffff)]' : 'text-[var(--tg-theme-hint-color,#6b7280)] active:bg-black/5'}`}
+                                        >
+                                            RUB
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
 
                             <div>
@@ -253,7 +276,7 @@ function App() {
                             </div>
                         </div>
 
-                        <div className="flex gap-3">
+                        <div className="flex gap-3 mb-2">
                             {editingTx && (
                                 <button
                                     onClick={handleDelete}
