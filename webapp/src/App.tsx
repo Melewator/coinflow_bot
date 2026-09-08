@@ -1,23 +1,58 @@
+import { useEffect, useState } from 'react';
 import { Wallet, PieChart, ArrowUpRight } from 'lucide-react';
 import WebApp from '@twa-dev/sdk';
+import axios from 'axios';
 
-interface MockTransaction {
+interface Transaction {
     id: string;
-    type: 'income' | 'expense';
     amount: number;
-    category: string;
+    currency: string;
     date: string;
-    icon: string;
+    category: {
+        name: string;
+        icon: string;
+    };
 }
 
-const mockTransactions: MockTransaction[] = [
-    { id: '1', type: 'expense', amount: 500, category: 'Кафе', date: 'Сегодня, 14:30', icon: '☕' },
-    { id: '2', type: 'expense', amount: 4500, category: 'Покупки', date: 'Вчера, 12:00', icon: '🛒' },
-    { id: '3', type: 'expense', amount: 1200, category: 'Такси', date: '18 окт, 21:15', icon: '🚕' },
+const mockTransactions: Transaction[] = [
+    { id: '1', amount: 500, currency: 'RUB', date: new Date().toISOString(), category: { name: 'Кафе', icon: '☕' } },
+    { id: '2', amount: 4500, currency: 'RUB', date: new Date(Date.now() - 86400000).toISOString(), category: { name: 'Покупки', icon: '🛒' } }
 ];
 
 function App() {
     const user = WebApp.initDataUnsafe.user;
+    const [transactions, setTransactions] = useState<Transaction[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchTransactions = async () => {
+            try {
+                // В Telegram userId это число, приводим к строке. '12345' — fallback для десктопа
+                const userId = user?.id?.toString() || '12345';
+                const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+
+                const response = await axios.get(`${apiUrl}/transactions/${userId}`);
+                setTransactions(response.data);
+            } catch (err) {
+                console.error("Fetch error:", err);
+                // При ошибке покажем моковые данные для наглядности (чтобы UI не был пустым при отладке)
+                setTransactions(mockTransactions);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchTransactions();
+    }, [user?.id]);
+
+    const totalAmount = transactions.reduce((sum, tx) => sum + tx.amount, 0);
+    const displayAmount = totalAmount.toLocaleString('ru-RU');
+
+    // Форматирование даты
+    const formatDate = (dateString: string) => {
+        const date = new Date(dateString);
+        return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+    };
 
     return (
         <div className="min-h-screen bg-[var(--tg-theme-secondary-bg-color,#f3f4f6)] p-5 flex flex-col gap-6 font-sans">
@@ -41,7 +76,7 @@ function App() {
             <div className="bg-[var(--tg-theme-bg-color,#ffffff)] rounded-[24px] p-6 shadow-sm border border-[var(--tg-theme-hint-color,#e5e7eb)]/40 transition-all hover:shadow-md">
                 <h2 className="text-[var(--tg-theme-hint-color,#6b7280)] text-sm font-medium mb-1">Траты в этом месяце</h2>
                 <div className="text-4xl font-extrabold text-[var(--tg-theme-text-color,#111827)] mb-5 tracking-tight">
-                    6 200 ₽
+                    {displayAmount} {transactions[0]?.currency || '₽'}
                 </div>
 
                 {/* Заглушка графика */}
@@ -51,7 +86,7 @@ function App() {
                 </div>
             </div>
 
-            {/* Операции */}
+            {/* Операции (С загрузочной заглушкой) */}
             <div className="flex flex-col gap-4 flex-1">
                 <div className="flex items-center justify-between px-1">
                     <h3 className="text-[var(--tg-theme-text-color,#111827)] font-bold text-xl">История</h3>
@@ -61,24 +96,30 @@ function App() {
                 </div>
 
                 <div className="flex flex-col gap-3">
-                    {mockTransactions.map((tx) => (
-                        <div key={tx.id} className="bg-[var(--tg-theme-bg-color,#ffffff)] rounded-[20px] p-4 flex items-center justify-between shadow-sm border border-transparent active:border-[var(--tg-theme-hint-color,#e5e7eb)] transition-colors">
-                            <div className="flex items-center gap-4">
-                                <div className="w-12 h-12 rounded-[16px] bg-[var(--tg-theme-secondary-bg-color,#f3f4f6)] flex items-center justify-center text-xl shadow-inner">
-                                    {tx.icon}
+                    {loading ? (
+                        <div className="text-center text-[var(--tg-theme-hint-color,#888)] py-4">Загрузка транзакций...</div>
+                    ) : transactions.length === 0 ? (
+                        <div className="text-center text-[var(--tg-theme-hint-color,#888)] py-4">У вас пока нет трат.</div>
+                    ) : (
+                        transactions.map((tx) => (
+                            <div key={tx.id} className="bg-[var(--tg-theme-bg-color,#ffffff)] rounded-[20px] p-4 flex items-center justify-between shadow-sm border border-transparent active:border-[var(--tg-theme-hint-color,#e5e7eb)] transition-colors">
+                                <div className="flex items-center gap-4">
+                                    <div className="w-12 h-12 rounded-[16px] bg-[var(--tg-theme-secondary-bg-color,#f3f4f6)] flex items-center justify-center text-xl shadow-inner">
+                                        {tx.category?.icon || '🏷️'}
+                                    </div>
+                                    <div className="flex flex-col gap-0.5">
+                                        <span className="font-bold text-[var(--tg-theme-text-color,#111827)] text-base">{tx.category?.name || 'Без категории'}</span>
+                                        <span className="text-[13px] text-[var(--tg-theme-hint-color,#6b7280)] font-medium">{formatDate(tx.date)}</span>
+                                    </div>
                                 </div>
-                                <div className="flex flex-col gap-0.5">
-                                    <span className="font-bold text-[var(--tg-theme-text-color,#111827)] text-base">{tx.category}</span>
-                                    <span className="text-[13px] text-[var(--tg-theme-hint-color,#6b7280)] font-medium">{tx.date}</span>
+                                <div className="flex flex-col items-end">
+                                    <span className="font-extrabold text-[17px] text-[var(--tg-theme-text-color,#111827)]">
+                                        -{tx.amount} {tx.currency}
+                                    </span>
                                 </div>
                             </div>
-                            <div className="flex flex-col items-end">
-                                <span className="font-extrabold text-[17px] text-[var(--tg-theme-text-color,#111827)]">
-                                    -{tx.amount} ₽
-                                </span>
-                            </div>
-                        </div>
-                    ))}
+                        ))
+                    )}
                 </div>
             </div>
 

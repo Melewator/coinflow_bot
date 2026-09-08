@@ -4,7 +4,7 @@ import cors from 'cors';
 import { prisma } from './db';
 
 const app = express();
-app.use(cors());
+app.use(cors({ origin: '*' })); // Разрешаем доступ со всех доменов (включая Netlify и ngrok)
 app.use(express.json());
 
 app.get('/api/transactions/:userId', async (req, res) => {
@@ -13,7 +13,7 @@ app.get('/api/transactions/:userId', async (req, res) => {
         const transactions = await prisma.transaction.findMany({
             where: { userId },
             orderBy: { date: 'desc' },
-            // include: { category: true } // можно включить, если фронтенду нужна информация о категории
+            include: { category: true } // Включаем информацию о категории для frontend'а
         });
         res.json(transactions);
     } catch (e) {
