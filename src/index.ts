@@ -24,18 +24,18 @@ app.get('/api/transactions/:userId', async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 
-async function start() {
-    console.log("Запуск Telegram бота и API сервера...");
-    try {
-        await bot.launch();
-        console.log("🚀 Telegram бот успешно запущен и готов к работе!");
+function start() {
+    console.log("Запуск API сервера и Telegram бота...");
 
-        app.listen(PORT, () => {
-            console.log(`🌐 API сервер запущен на порту ${PORT}`);
-        });
-    } catch (e) {
-        console.error("❌ Ошибка при запуске:", e);
-    }
+    // Запускаем Express сервер до (или параллельно) бота
+    app.listen(Number(PORT), '0.0.0.0', () => {
+        console.log(`🌐 API сервер запущен на 0.0.0.0:${PORT}`);
+    });
+
+    // Запуск Telegram бота
+    bot.launch()
+        .then(() => console.log("🚀 Telegram бот успешно запущен и готов к работе!"))
+        .catch(e => console.error("❌ Ошибка при запуске бота:", e));
 }
 
 start();
