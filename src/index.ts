@@ -161,13 +161,35 @@ app.post('/api/payments/create-invoice', async (req, res) => {
             payload: JSON.stringify({ userId: String(userId), plan: "pro_lifetime" }),
             provider_token: "", // Для Telegram Stars строго пустая строка
             currency: "XTR",
-            prices: [{ label: "CoinFlow PRO", amount: 25 }] // 25 Telegram Stars
+            prices: [{ label: "CoinFlow PRO (Скидка 80%)", amount: 5 }] // 5 Telegram Stars
         });
 
         res.json({ invoiceLink });
     } catch (e) {
         console.error("Invoice Error:", e);
         res.status(500).json({ error: 'Failed to create invoice' });
+    }
+});
+
+app.post('/api/promocodes/redeem', async (req, res) => {
+    try {
+        const { userId, code } = req.body;
+        if (!userId || !code) {
+            return res.status(400).json({ success: false, message: 'Необходим userId и промокод' });
+        }
+
+        if (code.trim().toLowerCase() === 'v2pure') {
+            await prisma.user.update({
+                where: { id: userId },
+                data: { isPro: true }
+            });
+            return res.json({ success: true, message: "PRO-статус успешно активирован!" });
+        } else {
+            return res.status(400).json({ success: false, message: "Неверный промокод" });
+        }
+    } catch (e) {
+        console.error("Promo Error:", e);
+        res.status(500).json({ success: false, message: "Ошибка сервера" });
     }
 });
 

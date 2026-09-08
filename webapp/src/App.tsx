@@ -49,6 +49,9 @@ function App() {
     // PRO Статус
     const [isPro, setIsPro] = useState(false);
     const [proModalOpen, setProModalOpen] = useState(false);
+    const [showPromoInput, setShowPromoInput] = useState(false);
+    const [promoCode, setPromoCode] = useState('');
+    const [promoError, setPromoError] = useState('');
 
     const rawUrl = (import.meta as any).env?.VITE_API_URL || 'https://coinflow-bot.onrender.com/api';
     const API_BASE_URL = rawUrl.replace(/\/+$/, '');
@@ -163,6 +166,25 @@ function App() {
             console.error(e);
             triggerHaptic('error');
             alert('Ошибка сервера при создании платежа');
+        }
+    };
+
+    const handleRedeemPromo = async () => {
+        if (!promoCode.trim()) return;
+        triggerHaptic('selection');
+        try {
+            const res = await axios.post(`${API_BASE_URL}/promocodes/redeem`, { userId, code: promoCode });
+            if (res.data.success) {
+                triggerHaptic('success');
+                setIsPro(true);
+                setProModalOpen(false);
+                setActiveTab('charts');
+                alert(res.data.message);
+            }
+        } catch (e: any) {
+            triggerHaptic('error');
+            setPromoError(e.response?.data?.message || 'Ошибка активации');
+            setTimeout(() => setPromoError(''), 3000);
         }
     };
 
@@ -517,12 +539,47 @@ function App() {
                                 <span>Премиум темы (эксклюзив)</span>
                             </div>
                         </div>
-                        <button
-                            onClick={handleBuyPro}
-                            className="w-full py-4 bg-[#212121] text-white rounded-[16px] font-bold text-[17px] active:scale-[0.98] transition-transform flex items-center justify-center gap-2"
-                        >
-                            ⭐️ Купить за 25 XTR
-                        </button>
+
+                        <div className="flex flex-col gap-4">
+                            <button
+                                onClick={handleBuyPro}
+                                className="w-full py-4 bg-[#212121] text-white rounded-[16px] font-bold active:scale-[0.98] transition-transform flex flex-col items-center justify-center gap-0.5 relative overflow-hidden shadow-lg shadow-black/20"
+                            >
+                                <span className="absolute top-2 right-2 bg-red-500 text-white text-[10px] uppercase font-extrabold px-2 py-0.5 rounded-full rotate-[12deg] shadow-sm">-80%</span>
+                                <div className="flex items-center gap-2 text-[18px]">
+                                    ⭐️ Купить за 5 XTR
+                                </div>
+                                <div className="text-[12px] text-white/50 line-through">25 XTR (без скидки)</div>
+                            </button>
+
+                            {!showPromoInput ? (
+                                <button
+                                    onClick={() => setShowPromoInput(true)}
+                                    className="text-xs text-[var(--app-button)] font-semibold underline underline-offset-2 opacity-80 text-center w-full mt-1"
+                                >
+                                    У меня есть промокод
+                                </button>
+                            ) : (
+                                <div className="flex flex-col gap-2 mt-2 bg-[var(--app-bg)] p-3 rounded-2xl animate-fade-in">
+                                    <div className="flex bg-[var(--app-card-bg)] rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-[var(--app-button)] border border-[var(--app-border)]/30">
+                                        <input
+                                            type="text"
+                                            value={promoCode}
+                                            onChange={e => setPromoCode(e.target.value)}
+                                            placeholder="Введите код"
+                                            className="w-full bg-transparent text-[var(--app-text)] text-sm px-4 py-3 outline-none uppercase font-bold"
+                                        />
+                                        <button
+                                            onClick={handleRedeemPromo}
+                                            className="px-4 bg-[var(--app-button)] text-[var(--app-button-text)] font-semibold active:opacity-80 transition-opacity"
+                                        >
+                                            OK
+                                        </button>
+                                    </div>
+                                    {promoError && <p className="text-red-500 text-xs text-center font-semibold mt-1">{promoError}</p>}
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
             )}
