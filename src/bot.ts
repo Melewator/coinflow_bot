@@ -102,7 +102,7 @@ bot.start(async (ctx) => {
                                 create: {
                                     name: `Личные финансы ${firstName}`,
                                     inviteCode: randomBytes(8).toString('hex'),
-                                    defaultCurrency: 'RUB',
+                                    defaultCurrency: 'USD',
                                 }
                             }
                         }

@@ -10,7 +10,7 @@ datasource db {
 model Workspace {
   id              String            @id @default(cuid())
   name            String
-  defaultCurrency String            @default("RUB") // "RUB" | "USD"
+  defaultCurrency String            @default("USD") // "USD" | "RUB"
   inviteCode      String            @unique
   createdAt       DateTime          @default(now())
   
@@ -57,7 +57,7 @@ model Transaction {
   workspaceId String
   userId      String
   amount      Float
-  currency    String    @default("RUB") // "RUB" | "USD"
+  currency    String    @default("USD") // "USD" | "RUB"
   categoryId  String
   comment     String?
   date        DateTime
