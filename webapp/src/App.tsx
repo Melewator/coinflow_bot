@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
-import { Wallet, PieChart, Plus, X, Trash2, Lock, Search, ArrowDownUp, Check } from 'lucide-react';
+import { Wallet, Plus, X, Trash2, Lock, Search, ArrowDownUp, Check } from 'lucide-react';
 import axios from 'axios';
 
 interface Category {
