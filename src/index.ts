@@ -3,6 +3,11 @@ import express from 'express';
 import cors from 'cors';
 import { prisma } from './db';
 
+// Глобальная сериализация BigInt для Express
+(BigInt.prototype as any).toJSON = function () {
+    return this.toString();
+};
+
 const app = express();
 app.use(cors({ origin: '*' })); // Разрешаем доступ со всех доменов (включая Netlify и ngrok)
 app.use(express.json());
@@ -15,7 +20,9 @@ app.get('/api/transactions/:userId', async (req, res) => {
             orderBy: { date: 'desc' },
             include: { category: true } // Включаем информацию о категории для frontend'а
         });
-        res.json(transactions);
+
+        // Возвращаем пустой массив, а не ошибку, если пусто 
+        res.status(200).json(transactions || []);
     } catch (e) {
         console.error("API error:", e);
         res.status(500).json({ error: 'Internal Server Error' });

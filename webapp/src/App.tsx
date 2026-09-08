@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { Wallet, PieChart, ArrowUpRight } from 'lucide-react';
-import WebApp from '@twa-dev/sdk';
 import axios from 'axios';
 
 interface Transaction {
@@ -20,18 +19,28 @@ const mockTransactions: Transaction[] = [
 ];
 
 function App() {
-    const user = WebApp.initDataUnsafe.user;
+    // Получение пользователя из Telegram WebApp с безопасным кастом
+    const tgUser = (window as any).Telegram?.WebApp?.initDataUnsafe?.user;
+    const userId = tgUser?.id ? String(tgUser.id) : '';
+
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [loading, setLoading] = useState(true);
 
+    const rawUrl = (import.meta as any).env?.VITE_API_URL || 'https://coinflow-bot.onrender.com/api';
+    const API_BASE_URL = rawUrl.replace(/\/+$/, '');
+
     useEffect(() => {
         const fetchTransactions = async () => {
-            try {
-                // В Telegram userId это число, приводим к строке. '12345' — fallback для десктопа
-                const userId = user?.id?.toString() || '12345';
-                const apiUrl = (import.meta as any).env?.VITE_API_URL || 'http://localhost:3000/api';
+            if (!userId) {
+                // Если нет userId (например, вне телеграма на обычном ПК и моки нужны для дебага)
+                setTransactions(mockTransactions);
+                setLoading(false);
+                return;
+            }
 
-                const response = await axios.get(`${apiUrl}/transactions/${userId}`);
+            try {
+                const response = await axios.get(`${API_BASE_URL}/transactions/${userId}`);
+                // При нормальном ответе (даже пустом массиве) моковые данные НЕ перезаписывают состояние
                 setTransactions(response.data);
             } catch (err) {
                 console.error("Fetch error:", err);
@@ -43,7 +52,7 @@ function App() {
         };
 
         fetchTransactions();
-    }, [user?.id]);
+    }, [tgUser?.id]);
 
     const totalAmount = transactions.reduce((sum, tx) => sum + tx.amount, 0);
     const displayAmount = totalAmount.toLocaleString('ru-RU');
@@ -64,7 +73,7 @@ function App() {
                         Мои финансы
                     </h1>
                     <p className="text-[var(--tg-theme-hint-color,#6b7280)] text-sm mt-0.5">
-                        {user?.first_name ? `Привет, ${user.first_name}!` : 'Демо-режим'}
+                        {tgUser?.first_name ? `Привет, ${tgUser.first_name}!` : 'Демо-режим'}
                     </p>
                 </div>
                 <div className="w-12 h-12 bg-gradient-to-tr from-[var(--tg-theme-button-color,#3b82f6)] to-[var(--tg-theme-button-color,#2563eb)] opacity-90 text-[var(--tg-theme-button-text-color,#ffffff)] rounded-full flex items-center justify-center shadow-lg shadow-blue-500/30">
