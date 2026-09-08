@@ -1,22 +1,22 @@
 import { useEffect, useState } from 'react';
-import { Wallet, PieChart, ArrowUpRight } from 'lucide-react';
+import { Wallet, PieChart, Plus, X, Trash2 } from 'lucide-react';
 import axios from 'axios';
+
+interface Category {
+    id: string;
+    name: string;
+    icon: string;
+}
 
 interface Transaction {
     id: string;
     amount: number;
     currency: string;
     date: string;
-    category: {
-        name: string;
-        icon: string;
-    };
+    categoryId: string;
+    comment: string;
+    category: Category;
 }
-
-const mockTransactions: Transaction[] = [
-    { id: '1', amount: 500, currency: 'RUB', date: new Date().toISOString(), category: { name: 'Кафе', icon: '☕' } },
-    { id: '2', amount: 4500, currency: 'RUB', date: new Date(Date.now() - 86400000).toISOString(), category: { name: 'Покупки', icon: '🛒' } }
-];
 
 function App() {
     // Получение пользователя из Telegram WebApp с безопасным кастом
@@ -24,49 +24,110 @@ function App() {
     const userId = tgUser?.id ? String(tgUser.id) : '';
 
     const [transactions, setTransactions] = useState<Transaction[]>([]);
+    const [categories, setCategories] = useState<Category[]>([]);
     const [loading, setLoading] = useState(true);
+
+    // Стейт для модалки редактирования/добавления
+    const [modalOpen, setModalOpen] = useState(false);
+    const [editingTx, setEditingTx] = useState<Transaction | null>(null);
+    const [formData, setFormData] = useState({ amount: '', categoryId: '', comment: '' });
 
     const rawUrl = (import.meta as any).env?.VITE_API_URL || 'https://coinflow-bot.onrender.com/api';
     const API_BASE_URL = rawUrl.replace(/\/+$/, '');
 
-    useEffect(() => {
-        const fetchTransactions = async () => {
-            if (!userId) {
-                // Если нет userId (например, вне телеграма на обычном ПК и моки нужны для дебага)
-                setTransactions(mockTransactions);
-                setLoading(false);
-                return;
-            }
+    // Обратная связь TWA
+    const triggerHaptic = (type: 'success' | 'error' | 'warning') => {
+        const haptic = (window as any).Telegram?.WebApp?.HapticFeedback;
+        if (haptic) haptic.notificationOccurred(type);
+    };
 
+    useEffect(() => {
+        const loadInitialData = async () => {
+            if (!userId) setLoading(false);
             try {
-                const response = await axios.get(`${API_BASE_URL}/transactions/${userId}`);
-                // При нормальном ответе (даже пустом массиве) моковые данные НЕ перезаписывают состояние
-                setTransactions(response.data);
+                // Грузим категории
+                const catsRes = await axios.get(`${API_BASE_URL}/categories?userId=${userId}`);
+                setCategories(catsRes.data);
+
+                // Грузим транзакции
+                if (userId) {
+                    const txRes = await axios.get(`${API_BASE_URL}/transactions/${userId}`);
+                    setTransactions(txRes.data);
+                }
             } catch (err) {
-                console.error("Fetch error:", err);
-                // При ошибке покажем моковые данные для наглядности (чтобы UI не был пустым при отладке)
-                setTransactions(mockTransactions);
+                console.error("Data load error:", err);
             } finally {
                 setLoading(false);
             }
         };
+        loadInitialData();
+    }, [userId, API_BASE_URL]);
 
-        fetchTransactions();
-    }, [tgUser?.id]);
+    const handleOpenModal = (tx: Transaction | null = null) => {
+        if (tx) {
+            setEditingTx(tx);
+            setFormData({ amount: tx.amount.toString(), categoryId: tx.category?.id || '', comment: tx.comment || '' });
+        } else {
+            setEditingTx(null);
+            setFormData({ amount: '', categoryId: categories[0]?.id || '', comment: '' });
+        }
+        setModalOpen(true);
+    };
+
+    const handleSave = async () => {
+        if (!formData.amount || !formData.categoryId) return;
+
+        try {
+            if (editingTx) {
+                // Обновление
+                const res = await axios.put(`${API_BASE_URL}/transactions/${editingTx.id}`, formData);
+                setTransactions(prev => prev.map(t => t.id === editingTx.id ? res.data : t));
+            } else {
+                // Создание
+                if (!userId) return alert('Демо-режим: сохранение невозможно');
+                const res = await axios.post(`${API_BASE_URL}/transactions`, {
+                    ...formData,
+                    userId,
+                    date: new Date().toISOString()
+                });
+                setTransactions(prev => [res.data, ...prev]);
+            }
+            triggerHaptic('success');
+            setModalOpen(false);
+        } catch (err) {
+            console.error(err);
+            triggerHaptic('error');
+            alert('Ошибка сервера при сохранении');
+        }
+    };
+
+    const handleDelete = async () => {
+        if (!editingTx) return;
+        if (!confirm('Точно удалить эту трату?')) return;
+
+        try {
+            await axios.delete(`${API_BASE_URL}/transactions/${editingTx.id}`);
+            setTransactions(prev => prev.filter(t => t.id !== editingTx.id));
+            triggerHaptic('success');
+            setModalOpen(false);
+        } catch (err) {
+            console.error(err);
+            triggerHaptic('error');
+            alert('Ошибка при удалении');
+        }
+    };
 
     const totalAmount = transactions.reduce((sum, tx) => sum + tx.amount, 0);
     const displayAmount = totalAmount.toLocaleString('ru-RU');
 
-    // Форматирование даты
     const formatDate = (dateString: string) => {
         const date = new Date(dateString);
         return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
     };
 
     return (
-        <div className="min-h-screen bg-[var(--tg-theme-secondary-bg-color,#f3f4f6)] p-5 flex flex-col gap-6 font-sans">
+        <div className="min-h-screen bg-[var(--tg-theme-secondary-bg-color,#f3f4f6)] p-5 flex flex-col gap-6 font-sans relative pb-24">
 
-            {/* Шапка */}
             <header className="flex items-center justify-between">
                 <div className="flex flex-col">
                     <h1 className="text-[var(--tg-theme-text-color,#111827)] text-2xl font-bold tracking-tight">
@@ -76,49 +137,49 @@ function App() {
                         {tgUser?.first_name ? `Привет, ${tgUser.first_name}!` : 'Демо-режим'}
                     </p>
                 </div>
-                <div className="w-12 h-12 bg-gradient-to-tr from-[var(--tg-theme-button-color,#3b82f6)] to-[var(--tg-theme-button-color,#2563eb)] opacity-90 text-[var(--tg-theme-button-text-color,#ffffff)] rounded-full flex items-center justify-center shadow-lg shadow-blue-500/30">
+                <div className="w-12 h-12 bg-gradient-to-tr from-[var(--tg-theme-button-color,#3b82f6)] to-[var(--tg-theme-button-color,#2563eb)] text-[var(--tg-theme-button-text-color,#ffffff)] rounded-full flex items-center justify-center shadow-lg shadow-blue-500/30">
                     <Wallet size={24} />
                 </div>
             </header>
 
-            {/* Карточка баланса */}
             <div className="bg-[var(--tg-theme-bg-color,#ffffff)] rounded-[24px] p-6 shadow-sm border border-[var(--tg-theme-hint-color,#e5e7eb)]/40 transition-all hover:shadow-md">
                 <h2 className="text-[var(--tg-theme-hint-color,#6b7280)] text-sm font-medium mb-1">Траты в этом месяце</h2>
                 <div className="text-4xl font-extrabold text-[var(--tg-theme-text-color,#111827)] mb-5 tracking-tight">
-                    {displayAmount} {transactions[0]?.currency || '₽'}
+                    {displayAmount} {transactions[0]?.currency || 'USD'}
                 </div>
 
-                {/* Заглушка графика */}
                 <div className="h-28 bg-[var(--tg-theme-secondary-bg-color,#f8fafc)] rounded-2xl flex flex-col items-center justify-center text-[var(--tg-theme-hint-color,#94a3b8)] gap-2 border border-dashed border-[var(--tg-theme-hint-color,#cbd5e1)]/60">
                     <PieChart size={28} className="text-[var(--tg-theme-button-color,#3b82f6)] opacity-70" />
                     <span className="text-xs font-semibold uppercase tracking-widest text-[var(--tg-theme-hint-color,#94a3b8)]">График в разработке</span>
                 </div>
             </div>
 
-            {/* Операции (С загрузочной заглушкой) */}
             <div className="flex flex-col gap-4 flex-1">
                 <div className="flex items-center justify-between px-1">
                     <h3 className="text-[var(--tg-theme-text-color,#111827)] font-bold text-xl">История</h3>
-                    <span className="text-[var(--tg-theme-link-color,#3b82f6)] text-sm font-semibold cursor-pointer active:opacity-70 transition-opacity">
-                        Посмотреть всё
-                    </span>
                 </div>
 
                 <div className="flex flex-col gap-3">
                     {loading ? (
-                        <div className="text-center text-[var(--tg-theme-hint-color,#888)] py-4">Загрузка транзакций...</div>
+                        <div className="text-center text-[var(--tg-theme-hint-color,#888)] py-4">Загрузка...</div>
                     ) : transactions.length === 0 ? (
                         <div className="text-center text-[var(--tg-theme-hint-color,#888)] py-4">У вас пока нет трат.</div>
                     ) : (
                         transactions.map((tx) => (
-                            <div key={tx.id} className="bg-[var(--tg-theme-bg-color,#ffffff)] rounded-[20px] p-4 flex items-center justify-between shadow-sm border border-transparent active:border-[var(--tg-theme-hint-color,#e5e7eb)] transition-colors">
+                            <div
+                                key={tx.id}
+                                onClick={() => handleOpenModal(tx)}
+                                className="cursor-pointer bg-[var(--tg-theme-bg-color,#ffffff)] rounded-[20px] p-4 flex items-center justify-between shadow-sm border border-transparent active:border-[var(--tg-theme-button-color,#3b82f6)] active:scale-[0.98] transition-all"
+                            >
                                 <div className="flex items-center gap-4">
                                     <div className="w-12 h-12 rounded-[16px] bg-[var(--tg-theme-secondary-bg-color,#f3f4f6)] flex items-center justify-center text-xl shadow-inner">
                                         {tx.category?.icon || '🏷️'}
                                     </div>
                                     <div className="flex flex-col gap-0.5">
                                         <span className="font-bold text-[var(--tg-theme-text-color,#111827)] text-base">{tx.category?.name || 'Без категории'}</span>
-                                        <span className="text-[13px] text-[var(--tg-theme-hint-color,#6b7280)] font-medium">{formatDate(tx.date)}</span>
+                                        <span className="text-[13px] text-[var(--tg-theme-hint-color,#6b7280)] font-medium max-w-[120px] truncate">
+                                            {tx.comment || formatDate(tx.date)}
+                                        </span>
                                     </div>
                                 </div>
                                 <div className="flex flex-col items-end">
@@ -132,12 +193,85 @@ function App() {
                 </div>
             </div>
 
-            {/* Кнопка добавления внизу */}
-            <button className="mt-4 mb-2 w-full py-4 bg-[var(--tg-theme-button-color,#3b82f6)] text-[var(--tg-theme-button-text-color,#ffffff)] rounded-[20px] font-bold text-lg active:scale-[0.97] transition-all shadow-lg shadow-blue-500/25 flex items-center justify-center gap-2">
-                <ArrowUpRight size={22} className="stroke-[3]" />
-                Добавить транзакцию
+            {/* Плавающая кнопка добавить (FAB) */}
+            <button
+                onClick={() => handleOpenModal()}
+                className="fixed bottom-6 right-6 w-14 h-14 bg-[var(--tg-theme-button-color,#3b82f6)] text-[var(--tg-theme-button-text-color,#ffffff)] rounded-full flex items-center justify-center shadow-lg shadow-blue-500/40 active:scale-95 transition-transform"
+            >
+                <Plus size={28} className="stroke-[3]" />
             </button>
 
+            {/* Модальное окно */}
+            {modalOpen && (
+                <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-sm"
+                    onClick={(e) => { if (e.target === e.currentTarget) setModalOpen(false); }}>
+                    <div className="bg-[var(--tg-theme-bg-color,#ffffff)] w-full max-w-md rounded-t-3xl p-6 shadow-2xl safe-area-bottom animate-[slideUp_0.3s_ease-out]">
+                        <div className="flex items-center justify-between mb-6">
+                            <h2 className="text-xl font-bold text-[var(--tg-theme-text-color,#111827)] whitespace-nowrap">
+                                {editingTx ? 'Редактировать' : 'Новый расход'}
+                            </h2>
+                            <button onClick={() => setModalOpen(false)} className="p-2 bg-[var(--tg-theme-secondary-bg-color,#f3f4f6)] text-[var(--tg-theme-hint-color,#6b7280)] rounded-full">
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        <div className="flex flex-col gap-4 mb-6">
+                            <div>
+                                <label className="block text-xs font-semibold text-[var(--tg-theme-hint-color,#6b7280)] mb-1 uppercase tracking-wider">Сумма (USD)</label>
+                                <input
+                                    type="number"
+                                    value={formData.amount}
+                                    onChange={e => setFormData({ ...formData, amount: e.target.value })}
+                                    className="w-full bg-[var(--tg-theme-secondary-bg-color,#f3f4f6)] text-[var(--tg-theme-text-color,#111827)] text-lg px-4 py-3 rounded-xl border-none outline-none focus:ring-2 focus:ring-[var(--tg-theme-button-color,#3b82f6)]"
+                                    placeholder="0.00"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-semibold text-[var(--tg-theme-hint-color,#6b7280)] mb-1 uppercase tracking-wider">Категория</label>
+                                <select
+                                    value={formData.categoryId}
+                                    onChange={e => setFormData({ ...formData, categoryId: e.target.value })}
+                                    className="w-full bg-[var(--tg-theme-secondary-bg-color,#f3f4f6)] text-[var(--tg-theme-text-color,#111827)] text-lg px-4 py-3 rounded-xl border-none outline-none focus:ring-2 focus:ring-[var(--tg-theme-button-color,#3b82f6)] appearance-none"
+                                >
+                                    <option value="" disabled>Выберите категорию</option>
+                                    {categories.map(c => (
+                                        <option key={c.id} value={c.id}>{c.icon} {c.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-semibold text-[var(--tg-theme-hint-color,#6b7280)] mb-1 uppercase tracking-wider">Комментарий</label>
+                                <input
+                                    type="text"
+                                    value={formData.comment}
+                                    onChange={e => setFormData({ ...formData, comment: e.target.value })}
+                                    className="w-full bg-[var(--tg-theme-secondary-bg-color,#f3f4f6)] text-[var(--tg-theme-text-color,#111827)] text-[15px] px-4 py-3 rounded-xl border-none outline-none focus:ring-2 focus:ring-[var(--tg-theme-button-color,#3b82f6)]"
+                                    placeholder="Например, Обед"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="flex gap-3">
+                            {editingTx && (
+                                <button
+                                    onClick={handleDelete}
+                                    className="flex-1 max-w-[64px] bg-red-100 text-red-600 flex items-center justify-center rounded-[16px] active:scale-95 transition-all"
+                                >
+                                    <Trash2 size={24} />
+                                </button>
+                            )}
+                            <button
+                                onClick={handleSave}
+                                className="flex-1 py-4 bg-[var(--tg-theme-button-color,#3b82f6)] text-[var(--tg-theme-button-text-color,#ffffff)] rounded-[16px] font-bold text-lg active:scale-[0.98] transition-all shadow-md"
+                            >
+                                Сохранить
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

@@ -29,6 +29,113 @@ app.get('/api/transactions/:userId', async (req, res) => {
     }
 });
 
+app.get('/api/categories', async (req, res) => {
+    try {
+        const userId = req.query.userId as string;
+        let whereClause: any = { isDefault: true };
+
+        if (userId) {
+            const user = await prisma.user.findUnique({
+                where: { id: userId },
+                include: { workspaces: true }
+            });
+            if (user && user.workspaces.length > 0) {
+                whereClause = {
+                    OR: [
+                        { isDefault: true },
+                        { workspaceId: user.workspaces[0].workspaceId }
+                    ]
+                };
+            }
+        }
+
+        const categories = await prisma.category.findMany({ where: whereClause });
+        res.json(categories);
+    } catch (e) {
+        console.error(e);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+app.post('/api/transactions', async (req, res) => {
+    try {
+        const { userId, amount, categoryId, comment, date, currency = 'USD' } = req.body;
+
+        let user = await prisma.user.findUnique({ where: { id: userId }, include: { workspaces: true } });
+        if (!user) {
+            user = await prisma.user.create({
+                data: {
+                    id: userId,
+                    username: 'unknown',
+                    firstName: 'WebApp User',
+                    workspaces: {
+                        create: {
+                            role: 'OWNER',
+                            workspace: {
+                                create: {
+                                    name: `Личные финансы`,
+                                    // Генерация случайного кода приглашения
+                                    inviteCode: Math.random().toString(36).substring(7),
+                                    defaultCurrency: 'USD',
+                                }
+                            }
+                        }
+                    }
+                }, include: { workspaces: true }
+            });
+        }
+
+        const workspaceId = user.workspaces[0].workspaceId;
+
+        const tx = await prisma.transaction.create({
+            data: {
+                userId,
+                workspaceId,
+                amount: parseFloat(amount),
+                categoryId,
+                comment: comment || '',
+                date: date ? new Date(date) : new Date(),
+                currency,
+                rawText: comment || 'Added from WebApp'
+            },
+            include: { category: true }
+        });
+        res.status(201).json(tx);
+    } catch (e) {
+        console.error(e);
+        res.status(500).json({ error: 'Creation failed' });
+    }
+});
+
+app.put('/api/transactions/:id', async (req, res) => {
+    try {
+        const { amount, categoryId, comment } = req.body;
+        const tx = await prisma.transaction.update({
+            where: { id: req.params.id },
+            data: {
+                amount: amount ? parseFloat(amount) : undefined,
+                categoryId,
+                comment
+            },
+            include: { category: true }
+        });
+        res.json(tx);
+    } catch (e) {
+        res.status(500).json({ error: 'Update failed' });
+    }
+});
+
+app.delete('/api/transactions/:id', async (req, res) => {
+    try {
+        await prisma.transaction.delete({
+            where: { id: req.params.id }
+        });
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ error: 'Deletion failed' });
+    }
+});
+
 const PORT = Number(process.env.PORT) || 3000;
 
 function start() {
