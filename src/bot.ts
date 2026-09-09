@@ -396,6 +396,73 @@ bot.on(message('text'), async (ctx) => {
         return ctx.reply("В базе нет доступных категорий. Сидинг БД еще не выполнен.");
     }
 
+    const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+
+    if (lines.length > 1) {
+        // Пакетный режим
+        const loadingMsg = await ctx.reply("🔄 Обрабатываю список трат...");
+
+        const parsings = await Promise.all(lines.map(async line => {
+            let parsed;
+            try {
+                parsed = await parseExpenseMessage(line, {
+                    categories: categoryNames,
+                    defaultCurrency: activeWorkspace.defaultCurrency as "RUB" | "USD",
+                    currentDate: new Date()
+                });
+            } catch (e) {
+                parsed = fallbackParse(line, categoryNames, activeWorkspace.defaultCurrency as "RUB" | "USD");
+            }
+            return { line, parsed };
+        }));
+
+        let totalAmountUSD = 0;
+        const insertedData = [];
+        let summaryLines: string[] = [];
+
+        for (const item of parsings) {
+            // Если fallback/ИИ не смог найти, мы тоже пропускаем?
+            // "Для каждой строки выполни распознавание... Если категория не найдена — строго Другое"
+            // fallbackParse вернет null если совсем ничего нет. Но раз просили "Другое", 
+            // если парсер что-то отдал, но категории нет.
+            if (!item.parsed) continue;
+
+            let category = categories.find(c => c.name === item.parsed.category);
+            if (!category) category = categories.find(c => c.name === 'Другое');
+            if (!category) category = categories[0];
+
+            const amount = item.parsed.amount;
+            const currency = item.parsed.currency || 'USD';
+            const comment = item.parsed.comment ? ` (${item.parsed.comment})` : '';
+
+            insertedData.push({
+                workspaceId: activeWorkspace.id,
+                userId: user.id,
+                amount: amount,
+                currency: currency,
+                categoryId: category.id,
+                comment: item.parsed.comment || '',
+                date: new Date()
+            });
+
+            // Для сводного итога складываем в USD (как в ТЗ)
+            totalAmountUSD += amount; // Для простоты суммируем напрямую в итоговую
+            summaryLines.push(`• ${amount} ${currency} — ${category.name}${comment}`);
+        }
+
+        if (insertedData.length === 0) {
+            return ctx.telegram.editMessageText(ctx.chat.id, loadingMsg.message_id, undefined, "К сожалению, не удалось распознать ни одну трату из списка.");
+        }
+
+        await prisma.transaction.createMany({
+            data: insertedData
+        });
+
+        const reply = `✅ Успешно записано трат: ${insertedData.length}\n\n${summaryLines.join('\n')}\n\n💵 Итого добавлено: ${totalAmountUSD} USD`;
+
+        return ctx.telegram.editMessageText(ctx.chat.id, loadingMsg.message_id, undefined, reply);
+    }
+
     // Запускаем парсинг
     let parsed;
     let isFallback = false;
@@ -420,13 +487,15 @@ bot.on(message('text'), async (ctx) => {
             `💡 <b>Пример:</b>\n` +
             `<code>9 Развлечения кино вдвоем</code>\n` +
             `<code>15 Еда пицца с сыром</code>\n\n` +
+            `<b>Множественный ввод (каждая с новой строки):</b>\n` +
+            `<code>5 Еда яблоки\n3 Транспорт автобус</code>\n\n` +
             `<b>Доступные категории:</b>\n${catsBulletMap}`;
 
         return ctx.reply(fallbackMessage, { parse_mode: 'HTML' });
     }
 
     // Сопоставляем результат со строкой из БД
-    const category = categories.find(c => c.name === parsed.category) || categories[0];
+    const category = categories.find(c => c.name === parsed.category) || categories.find(c => c.name === 'Другое') || categories[0];
 
     // Создаем временную транзакцию
     const tempId = Date.now().toString() + Math.floor(Math.random() * 1000).toString();
