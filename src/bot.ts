@@ -444,7 +444,8 @@ bot.on(message('text'), async (ctx) => {
             });
 
             // Для сводного итога складываем в USD (как в ТЗ)
-            totalAmountUSD += amount; // Для простоты суммируем напрямую в итоговую
+            const sumAmount = currency === 'RUB' ? amount / 90 : amount;
+            totalAmountUSD += sumAmount;
             summaryLines.push(`• ${amount} ${currency} — ${category.name}${commentStr}`);
         }
 
@@ -456,7 +457,7 @@ bot.on(message('text'), async (ctx) => {
             data: insertedData
         });
 
-        const reply = `✅ Успешно записано трат: ${insertedData.length}\n\n${summaryLines.join('\n')}\n\n💵 Итого добавлено: ${totalAmountUSD} USD`;
+        const reply = `✅ Успешно записано трат: ${insertedData.length}\n\n${summaryLines.join('\n')}\n\n💵 Итого добавлено: ~${totalAmountUSD.toFixed(2)} USD`;
 
         return ctx.telegram.editMessageText(ctx.chat.id, loadingMsg.message_id, undefined, reply);
     }

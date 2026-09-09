@@ -92,43 +92,54 @@ export async function parseExpenseMessage(text: string, options: ParseExpenseOpt
 }
 
 export function fallbackParse(text: string, categories: string[], defaultCurrency: "RUB" | "USD" = "USD"): ParsedExpense | null {
-    // Формат ввода: [Сумма] [Категория] [Остальной текст как комментарий]
     const parts = text.trim().split(/\s+/);
-
-    // Как минимум сумма и категория
-    if (parts.length < 2) return null;
+    if (parts.length < 1) return null;
 
     const amountStr = parts[0].replace(',', '.').replace(/[^\d.]/g, '');
     const amount = parseFloat(amountStr);
 
     if (isNaN(amount) || amount <= 0) return null;
 
-    // Валюта всегда USD по умолчанию (по просьбе пользователя)
     let parsedCurrency: "RUB" | "USD" = "USD";
+    const textLower = text.toLowerCase();
+    if (textLower.includes('rub') || textLower.includes('руб')) {
+        parsedCurrency = 'RUB';
+    } else if (textLower.includes('usd') || textLower.includes('$') || textLower.includes('дол')) {
+        parsedCurrency = 'USD';
+    }
 
-    const categoryInput = parts[1];
-    // Пытаемся найти запрошенную категорию
-    let categoryMatch = categories.find(c => c.toLowerCase() === categoryInput.toLowerCase());
+    let categoryInput = parts.length > 1 ? parts[1].toLowerCase() : '';
+    let comment = parts.slice(1).join(' '); // text after amount
 
-    // Если категория не найдена — ставим "Другое"
+    let categoryMatch = categories.find(c => c.toLowerCase() === categoryInput);
+
+    if (!categoryMatch && comment) {
+        const productKeywords = ['яйца', 'хлеб', 'молоко', 'еда', 'продукты', 'чипсы', 'вода', 'мясо', 'сыр', 'колбаса'];
+        const transportKeywords = ['проезд', 'такси', 'автобус', 'бензин', 'транспорт', 'метро'];
+        const cafeKeywords = ['кафе', 'ресторан', 'кофе', 'бургер', 'пицца', 'ланч'];
+
+        const cLower = comment.toLowerCase();
+        if (productKeywords.some(k => cLower.includes(k))) categoryMatch = categories.find(c => c.toLowerCase() === 'продукты' || c.toLowerCase() === 'супермаркет');
+        else if (transportKeywords.some(k => cLower.includes(k))) categoryMatch = categories.find(c => c.toLowerCase() === 'транспорт' || c.toLowerCase() === 'авто');
+        else if (cafeKeywords.some(k => cLower.includes(k))) categoryMatch = categories.find(c => c.toLowerCase() === 'кафе' || c.toLowerCase() === 'развлечения' || c.toLowerCase() === 'бары');
+    }
+
     if (!categoryMatch) {
         categoryMatch = categories.find(c => c.toLowerCase() === 'другое') || categories[0];
+    } else {
+        // Optionally remove the matched category from comment to avoid "Продукты Продукты"
+        if (comment.toLowerCase().startsWith(categoryMatch.toLowerCase())) {
+            comment = comment.slice(categoryMatch.length).trim();
+        }
     }
 
-    // Комментарий из оставшихся слов
-    let comment = parts.slice(2).join(' ');
-    if (!comment) {
-        // Если слов после категории нет, комментарием становится название категории
-        comment = categoryMatch;
-    }
-
-    const date = new Date().toISOString().split('T')[0];
+    if (!comment) comment = categoryMatch;
 
     return {
         amount,
         currency: parsedCurrency,
         category: categoryMatch,
         comment,
-        date
+        date: new Date().toISOString().split('T')[0]
     };
 }
