@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
-import { Wallet, Plus, X, Trash2, Lock, Search, ArrowDownUp, Check, Download } from 'lucide-react';
+import { Settings, Plus, X, Trash2, Lock, Search, ArrowDownUp, Check, Download } from 'lucide-react';
 import axios from 'axios';
 
 interface Category {
@@ -42,9 +42,20 @@ function App() {
     const [activeTab, setActiveTab] = useState<'finance' | 'charts'>('finance');
     const [searchQuery, setSearchQuery] = useState('');
     const [sortMode, setSortMode] = useState<'newest' | 'oldest' | 'expensive' | 'cheap'>('newest');
-    const [currencyFilter, setCurrencyFilter] = useState<'ALL' | 'USD' | 'RUB'>('ALL');
+
+    const initialBaseCurrency = (localStorage.getItem('coinflow_default_currency') as 'USD' | 'RUB') || 'USD';
+    const [baseCurrency, setBaseCurrency] = useState<'USD' | 'RUB'>(initialBaseCurrency);
+    const [currencyFilter, setCurrencyFilter] = useState<'ALL' | 'USD' | 'RUB'>(initialBaseCurrency);
+
     const [themeModalOpen, setThemeModalOpen] = useState(false);
     const [currentTheme, setCurrentTheme] = useState(localStorage.getItem('coinflow-theme') || 'default');
+
+    const changeBaseCurrency = (cur: 'USD' | 'RUB') => {
+        triggerHaptic('selection');
+        setBaseCurrency(cur);
+        localStorage.setItem('coinflow_default_currency', cur);
+        setCurrencyFilter(cur);
+    };
 
     // PRO Статус
     const [isPro, setIsPro] = useState(false);
@@ -377,12 +388,14 @@ function App() {
                                 onClick={() => { triggerHaptic('selection'); setThemeModalOpen(true); }}
                                 className="w-12 h-12 bg-gradient-to-tr from-[var(--app-button)] to-[var(--app-button)]/70 text-[var(--app-button-text)] rounded-full flex items-center justify-center shadow-lg active:scale-95 transition-transform"
                             >
-                                <Wallet size={24} />
+                                <Settings size={24} />
                             </button>
                         </header>
 
                         <div>
-                            <h2 className="text-[var(--app-hint)] text-sm font-medium mb-1">Сумма трат ({currencyFilter === 'ALL' ? 'MIX' : currencyFilter})</h2>
+                            <h2 className="text-[var(--app-hint)] text-sm font-medium mb-1">
+                                Сумма трат ({currencyFilter === 'ALL' ? baseCurrency : currencyFilter})
+                            </h2>
                             <div className="text-4xl font-extrabold text-[var(--app-text)] tracking-tight overflow-hidden text-ellipsis whitespace-nowrap">
                                 {displayAmount} {currencyFilter !== 'ALL' ? currencyFilter : ''}
                             </div>
@@ -614,28 +627,51 @@ function App() {
                 <Plus size={28} className="stroke-[3]" />
             </button>
 
-            {/* Модалка Тем */}
+            {/* Модалка Тем / Настроек */}
             {themeModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-sm"
                     onClick={(e) => { if (e.target === e.currentTarget) setThemeModalOpen(false); }}>
                     <div className="bg-[var(--app-card-bg)] w-full max-w-md rounded-t-3xl p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] shadow-2xl animate-[slideUp_0.3s_ease-out]">
                         <div className="flex items-center justify-between mb-5">
-                            <h2 className="text-xl font-bold text-[var(--app-text)]">Выбор темы</h2>
+                            <h2 className="text-xl font-bold text-[var(--app-text)]">Настройки</h2>
                             <button onClick={() => setThemeModalOpen(false)} className="p-2 bg-[var(--app-bg)] text-[var(--app-hint)] rounded-full">
                                 <X size={20} />
                             </button>
                         </div>
-                        <div className="flex flex-col gap-2">
-                            {THEMES.map(theme => (
-                                <button
-                                    key={theme.id}
-                                    onClick={() => changeTheme(theme.id)}
-                                    className={`flex items-center justify-between p-4 rounded-xl text-left font-bold transition-all ${currentTheme === theme.id ? 'bg-[var(--app-button)]/10 text-[var(--app-button)] border border-[var(--app-button)]/30' : 'bg-[var(--app-bg)] text-[var(--app-text)] border border-transparent'}`}
-                                >
-                                    {theme.name}
-                                    {currentTheme === theme.id && <Check size={20} />}
-                                </button>
-                            ))}
+
+                        <div className="flex flex-col gap-5">
+                            {/* Базовая валюта */}
+                            <div>
+                                <h3 className="text-xs font-semibold text-[var(--app-hint)] uppercase tracking-wider mb-2">Базовая валюта</h3>
+                                <div className="flex bg-[var(--app-bg)] rounded-xl p-1">
+                                    {(['USD', 'RUB'] as const).map(cur => (
+                                        <button
+                                            key={cur}
+                                            onClick={() => changeBaseCurrency(cur)}
+                                            className={`flex-1 py-3 text-sm font-bold rounded-lg transition-all ${baseCurrency === cur ? 'bg-[var(--app-card-bg)] text-[var(--app-text)] shadow-sm' : 'text-[var(--app-hint)] text-[var(--app-text)]/60'}`}
+                                        >
+                                            {cur}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Оформление */}
+                            <div>
+                                <h3 className="text-xs font-semibold text-[var(--app-hint)] uppercase tracking-wider mb-2">Оформление</h3>
+                                <div className="flex flex-col gap-2">
+                                    {THEMES.map(theme => (
+                                        <button
+                                            key={theme.id}
+                                            onClick={() => changeTheme(theme.id)}
+                                            className={`flex items-center justify-between p-4 rounded-xl text-left font-bold transition-all ${currentTheme === theme.id ? 'bg-[var(--app-button)]/10 text-[var(--app-button)] border border-[var(--app-button)]/30' : 'bg-[var(--app-bg)] text-[var(--app-text)] border border-transparent'}`}
+                                        >
+                                            {theme.name}
+                                            {currentTheme === theme.id && <Check size={20} />}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
