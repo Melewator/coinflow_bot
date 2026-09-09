@@ -20,14 +20,16 @@ model Workspace {
 }
 
 model User {
-  id              String            @id // Telegram user_id
-  username        String?
-  firstName       String?
-  isPro           Boolean           @default(false)
-  createdAt       DateTime          @default(now())
+  id                String            @id // Telegram user_id
+  username          String?
+  firstName         String?
+  isPro             Boolean           @default(false)
+  defaultCurrency   String            @default("USD")
+  secondaryCurrency String            @default("RUB")
+  createdAt         DateTime          @default(now())
   
-  workspaces      WorkspaceMember[]
-  transactions    Transaction[]
+  workspaces        WorkspaceMember[]
+  transactions      Transaction[]
 }
 
 model Payment {

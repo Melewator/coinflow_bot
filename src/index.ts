@@ -17,9 +17,46 @@ app.get('/api/user/:userId', async (req, res) => {
         const user = await prisma.user.findUnique({
             where: { id: req.params.userId }
         });
-        res.json({ isPro: user?.isPro || false });
+        res.json({ isPro: user?.isPro || false, defaultCurrency: user?.defaultCurrency || 'USD', secondaryCurrency: user?.secondaryCurrency || 'RUB' });
     } catch {
         res.status(500).json({ error: 'Failed to proxy user status' });
+    }
+});
+
+app.get('/api/user/settings', async (req, res) => {
+    try {
+        const userId = req.query.userId as string;
+        if (!userId) return res.status(400).json({ error: 'Missing userId' });
+
+        const user = await prisma.user.findUnique({
+            where: { id: userId }
+        });
+        res.json({
+            isPro: user?.isPro || false,
+            defaultCurrency: user?.defaultCurrency || 'USD',
+            secondaryCurrency: user?.secondaryCurrency || 'RUB'
+        });
+    } catch {
+        res.status(500).json({ error: 'Failed to get settings' });
+    }
+});
+
+app.put('/api/user/settings', async (req, res) => {
+    try {
+        const { userId, defaultCurrency, secondaryCurrency } = req.body;
+        if (!userId) return res.status(400).json({ error: 'Missing userId' });
+
+        const user = await prisma.user.update({
+            where: { id: userId },
+            data: {
+                defaultCurrency,
+                secondaryCurrency
+            }
+        });
+        res.json({ success: true, user });
+    } catch (e) {
+        console.error(e);
+        res.status(500).json({ error: 'Failed to update settings' });
     }
 });
 

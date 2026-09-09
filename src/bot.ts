@@ -407,16 +407,17 @@ bot.on(message('text'), async (ctx) => {
             try {
                 parsed = await parseExpenseMessage(line, {
                     categories: categoryNames,
-                    defaultCurrency: activeWorkspace.defaultCurrency as "RUB" | "USD",
+                    defaultCurrency: user.defaultCurrency as any,
                     currentDate: new Date()
                 });
+                if (!parsed) throw new Error("Fallback please");
             } catch (e) {
-                parsed = fallbackParse(line, categoryNames, activeWorkspace.defaultCurrency as "RUB" | "USD");
+                parsed = fallbackParse(line, categoryNames, user.defaultCurrency as any);
             }
             return { line, parsed };
         }));
 
-        let totalAmountUSD = 0;
+        let totalAmountBase = 0;
         const insertedData = [];
         let summaryLines: string[] = [];
 
@@ -429,7 +430,7 @@ bot.on(message('text'), async (ctx) => {
             if (!category) category = categories[0];
 
             const amount = parsed.amount;
-            const currency = parsed.currency || 'USD';
+            const currency = parsed.currency || user.defaultCurrency;
             const commentStr = parsed.comment ? ` (${parsed.comment})` : '';
 
             insertedData.push({
@@ -443,9 +444,13 @@ bot.on(message('text'), async (ctx) => {
                 rawText: item.line || ''
             });
 
-            // Для сводного итога складываем в USD (как в ТЗ)
-            const sumAmount = currency === 'RUB' ? amount / 90 : amount;
-            totalAmountUSD += sumAmount;
+            // Конвертируем в базовую валюту для итога (упрощенно)
+            let sumAmount = amount;
+            if (currency !== user.defaultCurrency) {
+                if (currency === 'RUB' && user.defaultCurrency === 'USD') sumAmount = amount / 90;
+                else if (currency === 'USD' && user.defaultCurrency === 'RUB') sumAmount = amount * 90;
+            }
+            totalAmountBase += sumAmount;
             summaryLines.push(`• ${amount} ${currency} — ${category.name}${commentStr}`);
         }
 
@@ -457,7 +462,7 @@ bot.on(message('text'), async (ctx) => {
             data: insertedData
         });
 
-        const reply = `✅ Успешно записано трат: ${insertedData.length}\n\n${summaryLines.join('\n')}\n\n💵 Итого добавлено: ~${totalAmountUSD.toFixed(2)} USD`;
+        const reply = `✅ Успешно записано трат: ${insertedData.length}\n\n${summaryLines.join('\n')}\n\n💵 Итого добавлено: ~${totalAmountBase.toFixed(2)} ${user.defaultCurrency}`;
 
         return ctx.telegram.editMessageText(ctx.chat.id, loadingMsg.message_id, undefined, reply);
     }
@@ -468,13 +473,14 @@ bot.on(message('text'), async (ctx) => {
     try {
         parsed = await parseExpenseMessage(text, {
             categories: categoryNames,
-            defaultCurrency: activeWorkspace.defaultCurrency as "RUB" | "USD",
+            defaultCurrency: user.defaultCurrency as any,
             currentDate: new Date()
         });
+        if (!parsed) throw new Error("Fallback");
     } catch (e) {
         console.error("AI Error:", e);
         // Если AI упал (например 503 High Demand), применяем fallback-регулярки
-        parsed = fallbackParse(text, categoryNames, activeWorkspace.defaultCurrency as "RUB" | "USD");
+        parsed = fallbackParse(text, categoryNames, user.defaultCurrency as any);
         isFallback = true;
     }
 
