@@ -39,7 +39,13 @@ function App() {
     const [formData, setFormData] = useState({ amount: '', categoryId: '', comment: '', currency: 'USD' });
 
     // UI Стейты
-    const [activeTab, setActiveTab] = useState<'finance' | 'charts'>('finance');
+    const [activeTab, setActiveTab] = useState<'finance' | 'charts' | 'rates'>('finance');
+
+    // Exchange rates logic
+    const [exchangeRates, setExchangeRates] = useState<{ USD: number; RUB: number; lastUpdate?: string }>({ USD: 1, RUB: 90 });
+    const [calcAmount, setCalcAmount] = useState('');
+    const [calcDirection, setCalcDirection] = useState<'USD_RUB' | 'RUB_USD'>('USD_RUB');
+
     const [searchQuery, setSearchQuery] = useState('');
     const [sortMode, setSortMode] = useState<'newest' | 'oldest' | 'expensive' | 'cheap'>('newest');
 
@@ -102,6 +108,20 @@ function App() {
                     setTransactions(txRes.data);
                     setIsPro(userRes.data?.isPro || false);
                 }
+
+                // Fetch exchange rates
+                try {
+                    const rateRes = await axios.get('https://open.er-api.com/v6/latest/USD');
+                    if (rateRes.data && rateRes.data.rates && rateRes.data.rates.RUB) {
+                        setExchangeRates({
+                            USD: 1,
+                            RUB: rateRes.data.rates.RUB,
+                            lastUpdate: new Date(rateRes.data.time_last_update_unix * 1000).toLocaleString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })
+                        });
+                    }
+                } catch (e) {
+                    console.error("Failed to fetch rates", e);
+                }
             } catch (err) {
                 console.error("Data load error:", err);
             } finally {
@@ -137,7 +157,7 @@ function App() {
         return 'Сначала дешевые';
     };
 
-    const handleTabClick = (tab: 'finance' | 'charts') => {
+    const handleTabClick = (tab: 'finance' | 'charts' | 'rates') => {
         if (tab === 'charts') {
             triggerHaptic('selection');
             if (!isPro) {
@@ -344,8 +364,20 @@ function App() {
         return filtered;
     }, [transactions, searchQuery, sortMode, currencyFilter]);
 
-    const totalAmount = displayedTransactions.reduce((sum, tx) => sum + tx.amount, 0);
-    const displayAmount = totalAmount.toLocaleString('ru-RU');
+    const convertedTotalAmount = useMemo(() => {
+        return displayedTransactions.reduce((sum, tx) => {
+            if (currencyFilter !== 'ALL') return sum + tx.amount;
+            if (tx.currency === baseCurrency) return sum + tx.amount;
+
+            if (baseCurrency === 'USD') {
+                return sum + (tx.amount / (exchangeRates.RUB || 1));
+            } else {
+                return sum + (tx.amount * (exchangeRates.RUB || 1));
+            }
+        }, 0);
+    }, [displayedTransactions, currencyFilter, baseCurrency, exchangeRates.RUB]);
+
+    const displayAmount = convertedTotalAmount.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 
     const formatDate = (dateString: string) => {
         const date = new Date(dateString);
@@ -359,15 +391,21 @@ function App() {
             <div className="flex px-2 pt-3">
                 <button
                     onClick={() => handleTabClick('finance')}
-                    className={`px-5 py-2.5 rounded-t-2xl font-bold transition-colors ${activeTab === 'finance' ? 'bg-[var(--app-card-bg)] text-[var(--app-text)]' : 'bg-[var(--app-card-bg)]/50 text-[var(--app-hint)] mt-1'}`}
+                    className={`px-4 py-2.5 rounded-t-2xl font-bold transition-colors ${activeTab === 'finance' ? 'bg-[var(--app-card-bg)] text-[var(--app-text)]' : 'bg-[var(--app-card-bg)]/50 text-[var(--app-hint)] mt-1'}`}
                 >
                     Мои финансы
                 </button>
                 <button
                     onClick={() => handleTabClick('charts')}
-                    className={`px-5 py-2.5 rounded-t-2xl font-bold transition-colors flex items-center gap-1.5 ${activeTab === 'charts' ? 'bg-[var(--app-card-bg)] text-[var(--app-text)]' : 'bg-[var(--app-card-bg)]/50 text-[var(--app-hint)] mt-1'}`}
+                    className={`px-4 py-2.5 rounded-t-2xl font-bold transition-colors flex items-center gap-1.5 ${activeTab === 'charts' ? 'bg-[var(--app-card-bg)] text-[var(--app-text)]' : 'bg-[var(--app-card-bg)]/50 text-[var(--app-hint)] mt-1'}`}
                 >
                     Графики {!isPro && <Lock size={14} />}
+                </button>
+                <button
+                    onClick={() => handleTabClick('rates')}
+                    className={`px-4 py-2.5 rounded-t-2xl font-bold transition-colors flex items-center gap-1.5 ${activeTab === 'rates' ? 'bg-[var(--app-card-bg)] text-[var(--app-text)]' : 'bg-[var(--app-card-bg)]/50 text-[var(--app-hint)] mt-1'}`}
+                >
+                    Курсы
                 </button>
             </div>
 
@@ -399,6 +437,11 @@ function App() {
                             <div className="text-4xl font-extrabold text-[var(--app-text)] tracking-tight overflow-hidden text-ellipsis whitespace-nowrap">
                                 {displayAmount} {currencyFilter !== 'ALL' ? currencyFilter : ''}
                             </div>
+                            {currencyFilter === 'ALL' && (
+                                <div className="text-[10px] text-[var(--app-hint)] mt-1.5 font-semibold opacity-70">
+                                    * сконвертировано по курсу 1 USD = {exchangeRates.RUB.toFixed(2)} RUB
+                                </div>
+                            )}
                         </div>
 
                         {/* Filters */}
@@ -610,6 +653,63 @@ function App() {
                             </button>
                         </>
                     )}
+                </div>
+            )}
+
+            {activeTab === 'rates' && (
+                <div className="flex flex-col gap-6 bg-[var(--app-card-bg)] rounded-3xl rounded-tl-none p-5 shadow-sm border border-[var(--app-border)]/40 transition-colors pb-8 min-h-[70vh]">
+                    <div className="flex flex-col items-center justify-center p-6 bg-[var(--app-bg)] rounded-3xl relative overflow-hidden">
+                        <span className="text-[var(--app-hint)] text-xs uppercase font-bold tracking-widest mb-1 z-10">Текущий курс</span>
+                        <div className="text-3xl font-black text-[var(--app-text)] z-10">
+                            1 USD = {exchangeRates.RUB.toFixed(2)} RUB
+                        </div>
+                        <span className="text-[var(--app-hint)] text-[10px] mt-2 opacity-60 z-10">
+                            Обновлено: {exchangeRates.lastUpdate || 'Сейчас'}
+                        </span>
+
+                        <div className="absolute -top-10 -right-10 w-32 h-32 bg-[var(--app-button)]/10 rounded-full blur-2xl"></div>
+                        <div className="absolute -bottom-10 -left-10 w-32 h-32 bg-[var(--app-button)]/10 rounded-full blur-2xl"></div>
+                    </div>
+
+                    <div className="flex flex-col gap-4 mt-2">
+                        <h3 className="text-xs font-bold text-[var(--app-hint)] uppercase tracking-wider pl-1">Калькулятор</h3>
+
+                        <div className="flex bg-[var(--app-bg)] rounded-2xl overflow-hidden focus-within:ring-2 focus-within:ring-[var(--app-button)] transition-shadow">
+                            <input
+                                type="number"
+                                value={calcAmount}
+                                onChange={e => setCalcAmount(e.target.value)}
+                                placeholder="Сумма..."
+                                className="w-full bg-transparent text-[var(--app-text)] text-lg px-4 py-4 outline-none border-none font-semibold text-center"
+                            />
+                            <button
+                                onClick={() => {
+                                    triggerHaptic('selection');
+                                    setCalcDirection(prev => prev === 'USD_RUB' ? 'RUB_USD' : 'USD_RUB');
+                                }}
+                                className="px-4 flex flex-col items-center justify-center bg-[var(--app-card-bg)] text-[var(--app-text)] font-semibold border-l border-[var(--app-border)]/30 min-w-[70px] active:scale-95 transition-transform"
+                            >
+                                <span className="text-xs opacity-60 font-black">{calcDirection === 'USD_RUB' ? 'USD' : 'RUB'}</span>
+                                <ArrowDownUp size={16} className="my-1 text-[var(--app-button)]" />
+                                <span className="text-xs opacity-60 font-black">{calcDirection === 'USD_RUB' ? 'RUB' : 'USD'}</span>
+                            </button>
+                        </div>
+
+                        <div className="bg-[var(--app-bg)] p-4 rounded-2xl flex flex-col items-center justify-center mt-2 shadow-inner">
+                            <span className="text-[var(--app-hint)] text-[10px] uppercase font-bold tracking-widest mb-1">Итого</span>
+                            <span className="text-2xl font-black text-[var(--app-text)]">
+                                {(() => {
+                                    const val = parseFloat(calcAmount);
+                                    if (isNaN(val)) return '0.00';
+                                    if (calcDirection === 'USD_RUB') {
+                                        return (val * exchangeRates.RUB).toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' RUB';
+                                    } else {
+                                        return (val / exchangeRates.RUB).toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' USD';
+                                    }
+                                })()}
+                            </span>
+                        </div>
+                    </div>
                 </div>
             )}
 
