@@ -421,19 +421,16 @@ bot.on(message('text'), async (ctx) => {
         let summaryLines: string[] = [];
 
         for (const item of parsings) {
-            // Если fallback/ИИ не смог найти, мы тоже пропускаем?
-            // "Для каждой строки выполни распознавание... Если категория не найдена — строго Другое"
-            // fallbackParse вернет null если совсем ничего нет. Но раз просили "Другое", 
-            // если парсер что-то отдал, но категории нет.
-            if (!item.parsed) continue;
+            const parsed = item.parsed;
+            if (!parsed) continue;
 
-            let category = categories.find(c => c.name === item.parsed.category);
+            let category = categories.find(c => c.name === parsed.category);
             if (!category) category = categories.find(c => c.name === 'Другое');
             if (!category) category = categories[0];
 
-            const amount = item.parsed.amount;
-            const currency = item.parsed.currency || 'USD';
-            const comment = item.parsed.comment ? ` (${item.parsed.comment})` : '';
+            const amount = parsed.amount;
+            const currency = parsed.currency || 'USD';
+            const commentStr = parsed.comment ? ` (${parsed.comment})` : '';
 
             insertedData.push({
                 workspaceId: activeWorkspace.id,
@@ -441,13 +438,14 @@ bot.on(message('text'), async (ctx) => {
                 amount: amount,
                 currency: currency,
                 categoryId: category.id,
-                comment: item.parsed.comment || '',
-                date: new Date()
+                comment: parsed.comment || '',
+                date: new Date(),
+                rawText: item.line || ''
             });
 
             // Для сводного итога складываем в USD (как в ТЗ)
             totalAmountUSD += amount; // Для простоты суммируем напрямую в итоговую
-            summaryLines.push(`• ${amount} ${currency} — ${category.name}${comment}`);
+            summaryLines.push(`• ${amount} ${currency} — ${category.name}${commentStr}`);
         }
 
         if (insertedData.length === 0) {
