@@ -101,10 +101,9 @@ export function fallbackParse(text: string, categories: string[], defaultCurrenc
     if (isNaN(amount) || amount <= 0) return null;
 
     let parsedCurrency: "RUB" | "USD" = "USD";
-    const textLower = text.toLowerCase();
-    if (textLower.includes('rub') || textLower.includes('руб')) {
+    if (/\b(руб|rub|рублей|рубля|₽)\b/i.test(text)) {
         parsedCurrency = 'RUB';
-    } else if (textLower.includes('usd') || textLower.includes('$') || textLower.includes('дол')) {
+    } else if (/\b(usd|дол|доллар|долларов|\$)\b/i.test(text)) {
         parsedCurrency = 'USD';
     }
 
@@ -114,26 +113,31 @@ export function fallbackParse(text: string, categories: string[], defaultCurrenc
     let categoryMatch = categories.find(c => c.toLowerCase() === categoryInput);
 
     if (!categoryMatch && comment) {
-        const productKeywords = ['яйца', 'хлеб', 'молоко', 'еда', 'продукты', 'чипсы', 'вода', 'мясо', 'сыр', 'колбаса'];
+        const productKeywords = ['яйца', 'хлеб', 'молоко', 'мясо', 'сыр', 'еда', 'супермаркет', 'чипсы', 'вода'];
+        const entertainmentKeywords = ['кино', 'фильм', 'билеты', 'игра', 'клуб'];
+        const cafeKeywords = ['кофе', 'чай', 'обед', 'ужин', 'пицца', 'бургер', 'кафе', 'ресторан'];
         const transportKeywords = ['проезд', 'такси', 'автобус', 'бензин', 'транспорт', 'метро'];
-        const cafeKeywords = ['кафе', 'ресторан', 'кофе', 'бургер', 'пицца', 'ланч'];
 
         const cLower = comment.toLowerCase();
-        if (productKeywords.some(k => cLower.includes(k))) categoryMatch = categories.find(c => c.toLowerCase() === 'продукты' || c.toLowerCase() === 'супермаркет');
-        else if (transportKeywords.some(k => cLower.includes(k))) categoryMatch = categories.find(c => c.toLowerCase() === 'транспорт' || c.toLowerCase() === 'авто');
-        else if (cafeKeywords.some(k => cLower.includes(k))) categoryMatch = categories.find(c => c.toLowerCase() === 'кафе' || c.toLowerCase() === 'развлечения' || c.toLowerCase() === 'бары');
+        if (productKeywords.some(k => cLower.includes(k))) {
+            categoryMatch = categories.find(c => c.toLowerCase() === 'продукты' || c.toLowerCase() === 'супермаркет');
+        } else if (entertainmentKeywords.some(k => cLower.includes(k))) {
+            categoryMatch = categories.find(c => c.toLowerCase() === 'развлечения');
+        } else if (cafeKeywords.some(k => cLower.includes(k))) {
+            categoryMatch = categories.find(c => c.toLowerCase() === 'кафе');
+        } else if (transportKeywords.some(k => cLower.includes(k))) {
+            categoryMatch = categories.find(c => c.toLowerCase() === 'транспорт' || c.toLowerCase() === 'авто');
+        }
     }
 
     if (!categoryMatch) {
         categoryMatch = categories.find(c => c.toLowerCase() === 'другое') || categories[0];
-    } else {
-        // Optionally remove the matched category from comment to avoid "Продукты Продукты"
-        if (comment.toLowerCase().startsWith(categoryMatch.toLowerCase())) {
-            comment = comment.slice(categoryMatch.length).trim();
-        }
     }
 
-    if (!comment) comment = categoryMatch;
+    // Только если после суммы ничего вообще нет - подставляем категорию
+    if (!comment) {
+        comment = categoryMatch;
+    }
 
     return {
         amount,
