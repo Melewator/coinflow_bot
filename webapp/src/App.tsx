@@ -23,6 +23,7 @@ const THEMES = [
     { id: 'dark-slate', name: 'Тёмная классика' },
     { id: 'oled', name: 'OLED Black' },
     { id: 'emerald', name: 'Изумруд' },
+    { id: 'forest', name: 'Лесной мох 🌲' },
     { id: 'light', name: 'Светлая тема' },
 ];
 
