@@ -407,12 +407,12 @@ bot.on(message('text'), async (ctx) => {
             try {
                 parsed = await parseExpenseMessage(line, {
                     categories: categoryNames,
-                    defaultCurrency: user.defaultCurrency as any,
+                    defaultCurrency: user.defaultCurrency as "RUB" | "USD",
                     currentDate: new Date()
                 });
                 if (!parsed) throw new Error("Fallback please");
             } catch (e) {
-                parsed = fallbackParse(line, categoryNames, user.defaultCurrency as any);
+                parsed = fallbackParse(line, categoryNames, user.defaultCurrency as "RUB" | "USD");
             }
             return { line, parsed };
         }));
@@ -473,14 +473,14 @@ bot.on(message('text'), async (ctx) => {
     try {
         parsed = await parseExpenseMessage(text, {
             categories: categoryNames,
-            defaultCurrency: user.defaultCurrency as any,
+            defaultCurrency: user.defaultCurrency as "RUB" | "USD",
             currentDate: new Date()
         });
         if (!parsed) throw new Error("Fallback");
     } catch (e) {
         console.error("AI Error:", e);
         // Если AI упал (например 503 High Demand), применяем fallback-регулярки
-        parsed = fallbackParse(text, categoryNames, user.defaultCurrency as any);
+        parsed = fallbackParse(text, categoryNames, user.defaultCurrency as "RUB" | "USD");
         isFallback = true;
     }
 
