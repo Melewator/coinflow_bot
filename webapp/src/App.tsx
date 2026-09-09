@@ -724,11 +724,12 @@ function App() {
                             />
                             <div className="flex pl-2 py-2 pr-2 bg-[var(--app-card-bg)] gap-2 border-l border-[var(--app-border)]/30">
                                 <select
-                                    className="bg-transparent text-[var(--app-text)] font-black text-xs outline-none"
+                                    className="bg-transparent text-[var(--app-text)] font-black text-xs outline-none cursor-pointer"
+                                    style={{ backgroundColor: 'var(--app-card-bg)', color: 'var(--app-text)' }}
                                     value={calcFrom}
                                     onChange={e => setCalcFrom(e.target.value)}
                                 >
-                                    {supportedCurrencies.map(c => <option key={c} value={c}>{c}</option>)}
+                                    {supportedCurrencies.map(c => <option key={c} value={c} style={{ backgroundColor: 'var(--app-card-bg)', color: 'var(--app-text)' }}>{c}</option>)}
                                 </select>
                                 <button
                                     onClick={() => {
@@ -742,11 +743,12 @@ function App() {
                                     <ArrowDownUp size={16} />
                                 </button>
                                 <select
-                                    className="bg-transparent text-[var(--app-text)] font-black text-xs outline-none"
+                                    className="bg-transparent text-[var(--app-text)] font-black text-xs outline-none cursor-pointer"
+                                    style={{ backgroundColor: 'var(--app-card-bg)', color: 'var(--app-text)' }}
                                     value={calcTo}
                                     onChange={e => setCalcTo(e.target.value)}
                                 >
-                                    {supportedCurrencies.map(c => <option key={c} value={c}>{c}</option>)}
+                                    {supportedCurrencies.map(c => <option key={c} value={c} style={{ backgroundColor: 'var(--app-card-bg)', color: 'var(--app-text)' }}>{c}</option>)}
                                 </select>
                             </div>
                         </div>
@@ -805,9 +807,10 @@ function App() {
                                         <select
                                             value={baseCurrency}
                                             onChange={e => saveSettings(e.target.value, secondaryCurrency)}
-                                            className="bg-transparent text-[var(--app-text)] font-bold text-sm outline-none"
+                                            className="bg-transparent text-[var(--app-text)] font-bold text-sm outline-none cursor-pointer"
+                                            style={{ backgroundColor: 'var(--app-bg)', color: 'var(--app-text)' }}
                                         >
-                                            {supportedCurrencies.map(c => <option key={c} value={c}>{c}</option>)}
+                                            {supportedCurrencies.map(c => <option key={c} value={c} style={{ backgroundColor: 'var(--app-bg)', color: 'var(--app-text)' }}>{c}</option>)}
                                         </select>
                                     </div>
                                     <div className="flex items-center justify-between bg-[var(--app-bg)] rounded-xl py-2 px-3">
@@ -815,9 +818,10 @@ function App() {
                                         <select
                                             value={secondaryCurrency}
                                             onChange={e => saveSettings(baseCurrency, e.target.value)}
-                                            className="bg-transparent text-[var(--app-text)] font-bold text-sm outline-none"
+                                            className="bg-transparent text-[var(--app-text)] font-bold text-sm outline-none cursor-pointer"
+                                            style={{ backgroundColor: 'var(--app-bg)', color: 'var(--app-text)' }}
                                         >
-                                            {supportedCurrencies.map(c => <option key={c} value={c}>{c}</option>)}
+                                            {supportedCurrencies.map(c => <option key={c} value={c} style={{ backgroundColor: 'var(--app-bg)', color: 'var(--app-text)' }}>{c}</option>)}
                                         </select>
                                     </div>
                                 </div>

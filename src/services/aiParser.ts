@@ -9,13 +9,13 @@ const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 export interface ParseExpenseOptions {
     categories: string[];
-    defaultCurrency?: "RUB" | "USD";
+    defaultCurrency?: string;
     currentDate?: Date;
 }
 
 export interface ParsedExpense {
     amount: number;
-    currency: "RUB" | "USD";
+    currency: string;
     category: string;
     comment: string;
     date: string;
@@ -37,7 +37,7 @@ export async function parseExpenseMessage(text: string, options: ParseExpenseOpt
 1. Если сообщение не является финансовой тратой (например вопрос, бессмысленный текст), верни isExpense = false.
 2. Сумма (amount) должна быть положительным числом. Корректно обрабатывай дробные числа: если число написано с запятой (например, 4,5), оно должно парситься как дробное число с точкой (4.5).
 3. ВАЖНО: Если пользователь явно не указал валюту в сообщении, ВСЕГДА используй валюту по умолчанию: '${defaultCurrency}'.
-4. Default currency is USD if not specified by user.
+4. Если валюта явно указана пользователем (например RUB, USD, EUR, THB, VND), используй её.
 5. Дата (date) должна быть в формате YYYY-MM-DD.
 6. Категория должна строго совпадать с одной из предложенного списка.
 7. Комментарий (comment) - краткое описание покупки на основе текста.`;
@@ -55,10 +55,10 @@ export async function parseExpenseMessage(text: string, options: ParseExpenseOpt
                 nullable: true,
                 properties: {
                     amount: { type: Type.NUMBER, description: "Сумма (положительное число)" },
-                    currency: { type: Type.STRING, enum: ["RUB", "USD"], description: "RUB или USD" },
+                    currency: { type: Type.STRING, description: "Код валюты (RUB, USD, THB и т.д.)" },
                     category: { type: Type.STRING, enum: categories, description: "Категория из предложенного списка" },
                     comment: { type: Type.STRING, description: "Краткий комментарий (на что потрачено)" },
-                    date: { type: Type.STRING, description: "Дата расхода в формате YYYY-MM-DD" },
+                    date: { type: Type.STRING, description: "Дата в формате YYYY-MM-DD" }
                 },
                 required: ["amount", "currency", "category", "comment", "date"]
             }
@@ -91,7 +91,7 @@ export async function parseExpenseMessage(text: string, options: ParseExpenseOpt
     }
 }
 
-export function fallbackParse(text: string, categories: string[], defaultCurrency: "RUB" | "USD" = "USD"): ParsedExpense | null {
+export function fallbackParse(text: string, categories: string[], defaultCurrency: string = "USD"): ParsedExpense | null {
     const parts = text.trim().split(/\s+/);
     if (parts.length < 1) return null;
 
@@ -100,11 +100,23 @@ export function fallbackParse(text: string, categories: string[], defaultCurrenc
 
     if (isNaN(amount) || amount <= 0) return null;
 
-    let parsedCurrency: "RUB" | "USD" = "USD";
+    let parsedCurrency: string = defaultCurrency;
     if (/\b(руб|rub|рублей|рубля|₽)\b/i.test(text)) {
         parsedCurrency = 'RUB';
     } else if (/\b(usd|дол|доллар|долларов|\$)\b/i.test(text)) {
         parsedCurrency = 'USD';
+    } else if (/\b(eur|евро|€)\b/i.test(text)) {
+        parsedCurrency = 'EUR';
+    } else if (/\b(thb|бат|батов|฿)\b/i.test(text)) {
+        parsedCurrency = 'THB';
+    } else if (/\b(vnd|донг|донгов)\b/i.test(text)) {
+        parsedCurrency = 'VND';
+    } else if (/\b(try|лир|лира|лиры|₺)\b/i.test(text)) {
+        parsedCurrency = 'TRY';
+    } else if (/\b(uah|гривн|гривен|₴)\b/i.test(text)) {
+        parsedCurrency = 'UAH';
+    } else if (/\b(byn|бел|зайчик)\b/i.test(text)) {
+        parsedCurrency = 'BYN';
     }
 
     let categoryInput = parts.length > 1 ? parts[1].toLowerCase() : '';
