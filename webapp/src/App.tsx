@@ -440,7 +440,7 @@ function App() {
                         <header className="flex items-center justify-between">
                             <div className="flex flex-col">
                                 <h1 className="text-[var(--app-text)] text-2xl font-bold tracking-tight">
-                                    Баланс
+                                    Мои расходы
                                 </h1>
                                 <p className="text-[var(--app-hint)] text-sm mt-0.5">
                                     {tgUser?.first_name ? `Привет, ${tgUser.first_name}!` : 'Демо-режим'}
@@ -456,7 +456,7 @@ function App() {
 
                         <div>
                             <h2 className="text-[var(--app-hint)] text-sm font-medium mb-1">
-                                Сумма трат ({currencyFilter === 'ALL' ? baseCurrency : currencyFilter})
+                                Всего за период ({currencyFilter === 'ALL' ? baseCurrency : currencyFilter})
                             </h2>
                             <div className="text-4xl font-extrabold text-[var(--app-text)] tracking-tight overflow-hidden text-ellipsis whitespace-nowrap">
                                 {displayAmount} {currencyFilter !== 'ALL' ? currencyFilter : ''}

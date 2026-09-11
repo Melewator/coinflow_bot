@@ -101,19 +101,19 @@ export function fallbackParse(text: string, categories: string[], defaultCurrenc
     if (isNaN(amount) || amount <= 0) return null;
 
     let parsedCurrency: string = defaultCurrency;
-    if (/\b(руб|rub|рублей|рубля|₽)\b/i.test(text)) {
+    if (/\b(руб|rub|рублей|рубля)\b|₽/i.test(text)) {
         parsedCurrency = 'RUB';
-    } else if (/\b(usd|дол|доллар|долларов|\$)\b/i.test(text)) {
+    } else if (/\b(usd|дол|доллар|долларов)\b|\$/i.test(text)) {
         parsedCurrency = 'USD';
-    } else if (/\b(eur|евро|€)\b/i.test(text)) {
+    } else if (/\b(eur|евро)\b|€/i.test(text)) {
         parsedCurrency = 'EUR';
-    } else if (/\b(thb|бат|батов|฿)\b/i.test(text)) {
+    } else if (/\b(thb|бат|батов)\b|฿/i.test(text)) {
         parsedCurrency = 'THB';
     } else if (/\b(vnd|донг|донгов)\b/i.test(text)) {
         parsedCurrency = 'VND';
-    } else if (/\b(try|лир|лира|лиры|₺)\b/i.test(text)) {
+    } else if (/\b(try|лир|лира|лиры)\b|₺/i.test(text)) {
         parsedCurrency = 'TRY';
-    } else if (/\b(uah|гривн|гривен|₴)\b/i.test(text)) {
+    } else if (/\b(uah|гривн|гривен)\b|₴/i.test(text)) {
         parsedCurrency = 'UAH';
     } else if (/\b(byn|бел|зайчик)\b/i.test(text)) {
         parsedCurrency = 'BYN';

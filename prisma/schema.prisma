@@ -70,6 +70,7 @@ model Transaction {
   userId      String
   amount      Float
   currency    String    @default("USD") // "USD" | "RUB"
+  rateToUsd   Float     @default(1.0)
   categoryId  String
   comment     String?
   date        DateTime

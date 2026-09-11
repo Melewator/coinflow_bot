@@ -14,6 +14,30 @@ if (!token) {
 
 export const bot = new Telegraf(token);
 
+let exchangeRatesCache: Record<string, number> = {};
+let exchangeRatesLastUpdate = 0;
+const CACHE_TTL = 3600 * 1000;
+
+async function getUsdRate(currency: string): Promise<number> {
+    const defaultRate = currency === 'RUB' ? 95 : 1;
+    if (currency === 'USD') return 1.0;
+
+    const now = Date.now();
+    if (now - exchangeRatesLastUpdate > CACHE_TTL) {
+        try {
+            const res = await fetch('https://open.er-api.com/v6/latest/USD');
+            const data = await res.json();
+            if (data && data.rates) {
+                exchangeRatesCache = data.rates;
+                exchangeRatesLastUpdate = now;
+            }
+        } catch (e) {
+            console.error('Error fetching exchange rates:', e);
+        }
+    }
+    return exchangeRatesCache[currency] || defaultRate;
+}
+
 // Глобальный обработчик ошибок (Отказоустойчивость)
 bot.catch((err, ctx) => {
     console.error(`❌ Глобальная ошибка Telegram для обновления типа ${ctx.updateType}:`, err);
@@ -94,11 +118,14 @@ bot.start(async (ctx) => {
             `• <code>5 кофе</code>\n` +
             `• <code>14.5 такси в аэропорт</code>\n` +
             `• <code>2500 RUB продукты супермаркет</code>\n\n` +
-            `По умолчанию валюта — USD, но ты всегда можешь дописать RUB.\n\n` +
+            `📦 <b>Пакетный ввод:</b>\n` +
+            `Пиши покупки списком, каждую с новой строки.\n\n` +
+            `🌍 <b>Мультивалютность:</b>\n` +
+            `Пиши $5, 100 ฿ или используй дашборд для выбора базовой валюты.\n\n` +
             `📱 <b>Интерактивный дашборд:</b>\n` +
             `Нажми кнопку ниже, чтобы открыть полноэкранное приложение. В нем можно:\n` +
             `• Смотреть баланс и детальную историю\n` +
-            `• Менять категории и суммы трат в один клик\n` +
+            `• Меняй категории и суммы трат за один клик\n` +
             `• Фильтровать и искать по комментариям\n` +
             `• Выбирать стильные темы оформления`;
 
@@ -240,12 +267,14 @@ bot.action(/^confirm_(.+)$/, async (ctx) => {
     }
 
     try {
+        const rateToUsd = await getUsdRate(data.parsed.currency);
         const transaction = await prisma.transaction.create({
             data: {
                 workspaceId: data.workspaceId,
                 userId: data.userId,
                 amount: data.parsed.amount,
                 currency: data.parsed.currency,
+                rateToUsd: rateToUsd,
                 categoryId: data.categoryId,
                 comment: data.parsed.comment || 'Без комментария',
                 date: new Date(data.parsed.date),
@@ -255,15 +284,35 @@ bot.action(/^confirm_(.+)$/, async (ctx) => {
 
         pendingTransactions.delete(tempId);
 
-        const replyText = `✅ <b>Трата записана!</b>\n\n` +
-            `💵 Сумма: ${transaction.amount} ${transaction.currency}\n` +
-            `🏷 Категория: ${data.categoryIcon} ${data.parsed.category}\n` +
-            `💬 Комментарий: ${transaction.comment}\n` +
-            `📅 Дата: ${data.parsed.date}`;
+        // Calculate today total in base currency
+        const startOfDay = new Date();
+        startOfDay.setHours(0, 0, 0, 0);
 
-        const confirmedText = `${replyText}\n\n💾 <i>Сохранено в базу</i>`;
+        const todayTxs = await prisma.transaction.findMany({
+            where: {
+                userId: data.userId,
+                date: { gte: startOfDay }
+            }
+        });
 
-        await ctx.editMessageText(confirmedText, {
+        const user = await prisma.user.findUnique({ where: { id: data.userId } });
+        const defaultCurrency = user?.defaultCurrency || 'USD';
+        const targetRate = await getUsdRate(defaultCurrency);
+
+        let totalAmountBase = 0;
+        for (const tx of todayTxs) {
+            const txRate = tx.rateToUsd || await getUsdRate(tx.currency);
+            const amountInUsd = tx.amount / txRate;
+            totalAmountBase += amountInUsd * targetRate;
+        }
+
+        const commentStr = transaction.comment && transaction.comment !== 'Без комментария' ? ` (${transaction.comment})` : '';
+
+        const replyText = `✅ <b>Расход записан</b>\n\n` +
+            `• ${transaction.amount} ${transaction.currency} — ${data.parsed.category}${commentStr}\n\n` +
+            `💵 Итого за день: ~${totalAmountBase.toLocaleString('en-US', { maximumFractionDigits: 2 })} ${defaultCurrency}`;
+
+        await ctx.editMessageText(replyText, {
             parse_mode: 'HTML',
             reply_markup: { inline_keyboard: [] }
         });
@@ -432,26 +481,25 @@ bot.on(message('text'), async (ctx) => {
             const amount = parsed.amount;
             const currency = parsed.currency || user.defaultCurrency;
             const commentStr = parsed.comment ? ` (${parsed.comment})` : '';
+            const rateToUsd = await getUsdRate(currency);
 
             insertedData.push({
                 workspaceId: activeWorkspace.id,
                 userId: user.id,
                 amount: amount,
                 currency: currency,
+                rateToUsd: rateToUsd,
                 categoryId: category.id,
                 comment: parsed.comment || '',
                 date: new Date(),
                 rawText: item.line || ''
             });
 
-            // Конвертируем в базовую валюту для итога (упрощенно)
-            let sumAmount = amount;
-            if (currency !== user.defaultCurrency) {
-                if (currency === 'RUB' && user.defaultCurrency === 'USD') sumAmount = amount / 90;
-                else if (currency === 'USD' && user.defaultCurrency === 'RUB') sumAmount = amount * 90;
-            }
-            totalAmountBase += sumAmount;
-            summaryLines.push(`• ${amount} ${currency} — ${category.name}${commentStr}`);
+            // Конвертируем в базовую валюту для итога
+            const amountInUsd = amount / rateToUsd;
+            const targetRate = await getUsdRate(user.defaultCurrency);
+            totalAmountBase += (amountInUsd * targetRate);
+            summaryLines.push(`• ${amount.toLocaleString('en-US', { maximumFractionDigits: 2 })} ${currency} — ${category.name}${commentStr}`);
         }
 
         if (insertedData.length === 0) {
@@ -462,9 +510,9 @@ bot.on(message('text'), async (ctx) => {
             data: insertedData
         });
 
-        const reply = `✅ Успешно записано трат: ${insertedData.length}\n\n${summaryLines.join('\n')}\n\n💵 Итого добавлено: ~${totalAmountBase.toFixed(2)} ${user.defaultCurrency}`;
+        const reply = `✅ <b>Расход записан</b>\n\n${summaryLines.join('\n')}\n\n💵 Итого за день: ~${totalAmountBase.toLocaleString('en-US', { maximumFractionDigits: 2 })} ${user.defaultCurrency}`;
 
-        return ctx.telegram.editMessageText(ctx.chat.id, loadingMsg.message_id, undefined, reply);
+        return ctx.telegram.editMessageText(ctx.chat.id, loadingMsg.message_id, undefined, reply, { parse_mode: 'HTML' });
     }
 
     // Запускаем парсинг
