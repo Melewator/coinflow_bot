@@ -60,6 +60,28 @@ app.put('/api/user/settings', async (req, res) => {
     }
 });
 
+// Полное удаление аккаунта
+app.delete('/api/user/account', async (req, res) => {
+    const { userId } = req.body;
+    if (!userId) return res.status(400).json({ error: 'Missing userId' });
+    try {
+        const memberships = await prisma.workspaceMember.findMany({ where: { userId } });
+        const workspaceIds = memberships.map(m => m.workspaceId);
+
+        await prisma.transaction.deleteMany({ where: { userId } });
+        if (workspaceIds.length > 0) {
+            await prisma.category.deleteMany({ where: { workspaceId: { in: workspaceIds } } });
+            await prisma.workspace.deleteMany({ where: { id: { in: workspaceIds } } });
+        }
+        await prisma.user.delete({ where: { id: userId } });
+
+        res.json({ success: true, message: 'Account deleted' });
+    } catch (e) {
+        console.error('Delete account error:', e);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
 app.get('/api/transactions/:userId', async (req, res) => {
     const userId = req.params.userId;
     try {

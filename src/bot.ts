@@ -103,43 +103,47 @@ const pendingTransactions = new Map<string, PendingTransaction>();
 
 bot.start(async (ctx) => {
     const fromId = ctx.from.id.toString();
-    const username = ctx.from.username;
-    const firstName = ctx.from.first_name;
 
     try {
         let user = await prisma.user.findUnique({
-            where: { id: fromId },
-            include: { workspaces: true }
+            where: { id: fromId }
         });
 
-        const welcomeText = `👋 Привет! Я CoinFlow — твой карманный финансовый ассистент.\n\n` +
-            `⚡️ <b>Быстрая запись на ходу:</b>\n` +
-            `Просто пиши мне в чат сумму и комментарий обычным языком:\n` +
-            `• <code>5 кофе</code>\n` +
-            `• <code>14.5 такси в аэропорт</code>\n` +
-            `• <code>2500 RUB продукты супермаркет</code>\n\n` +
-            `📦 <b>Пакетный ввод:</b>\n` +
-            `Пиши покупки списком, каждую с новой строки.\n\n` +
-            `🌍 <b>Мультивалютность:</b>\n` +
-            `Пиши $5, 100 ฿ или используй дашборд для выбора базовой валюты.\n\n` +
-            `📱 <b>Интерактивный дашборд:</b>\n` +
-            `Нажми кнопку ниже, чтобы открыть полноэкранное приложение. В нем можно:\n` +
-            `• Смотреть баланс и детальную историю\n` +
-            `• Меняй категории и суммы трат за один клик\n` +
-            `• Фильтровать и искать по комментариям\n` +
-            `• Выбирать стильные темы оформления`;
-
-        const welcomeMarkup = Markup.inlineKeyboard([
-            Markup.button.webApp('🚀 Открыть дашборд', process.env.WEBAPP_URL || 'https://google.com')
-        ]);
-
         if (!user) {
-            // Создаем пользователя и дефолтный Workspace
+            const kb = Markup.inlineKeyboard([
+                [Markup.button.callback('🇺🇸 USD', 'set_cur_USD'), Markup.button.callback('🇷🇺 RUB', 'set_cur_RUB'), Markup.button.callback('🇪🇺 EUR', 'set_cur_EUR')],
+                [Markup.button.callback('🇹🇭 THB', 'set_cur_THB'), Markup.button.callback('🇹🇷 TRY', 'set_cur_TRY'), Markup.button.callback('🇺🇦 UAH', 'set_cur_UAH')],
+                [Markup.button.callback('🇧🇾 BYN', 'set_cur_BYN'), Markup.button.callback('🇻🇳 VND', 'set_cur_VND')]
+            ]);
+            await ctx.reply("👋 Добро пожаловать в CoinFlow!\n\nВыберите вашу основную валюту для учета трат:", kb);
+        } else {
+            const welcomeText = `С возвращением, ${ctx.from.first_name || 'пользователь'}!\n\n📱 <b>Интерактивный дашборд:</b>\nНажми кнопку ниже, чтобы открыть полноэкранное приложение.`;
+            const welcomeMarkup = Markup.inlineKeyboard([
+                Markup.button.webApp('🚀 Открыть дашборд', process.env.WEBAPP_URL || 'https://google.com')
+            ]);
+            await ctx.reply(welcomeText, { parse_mode: 'HTML', reply_markup: welcomeMarkup.reply_markup });
+        }
+    } catch (e) {
+        console.error("Registration Error:", e);
+        await ctx.reply("Произошла ошибка при регистрации. Пожалуйста, попробуйте позже.");
+    }
+});
+
+bot.action(/^set_cur_(.+)$/, async (ctx) => {
+    const fromId = ctx.from.id.toString();
+    const username = ctx.from.username;
+    const firstName = ctx.from.first_name;
+    const cur = ctx.match[1];
+
+    try {
+        let user = await prisma.user.findUnique({ where: { id: fromId } });
+        if (!user) {
             user = await prisma.user.create({
                 data: {
                     id: fromId,
                     username,
                     firstName,
+                    defaultCurrency: cur,
                     workspaces: {
                         create: {
                             role: 'OWNER',
@@ -147,21 +151,30 @@ bot.start(async (ctx) => {
                                 create: {
                                     name: `Личные финансы ${firstName}`,
                                     inviteCode: randomBytes(8).toString('hex'),
-                                    defaultCurrency: 'USD',
+                                    defaultCurrency: cur,
                                 }
                             }
                         }
                     }
-                },
-                include: { workspaces: true }
+                }
             });
-            await ctx.reply(welcomeText, { parse_mode: 'HTML', reply_markup: welcomeMarkup.reply_markup });
-        } else {
-            await ctx.reply(`С возвращением, ${firstName}!\n\n${welcomeText}`, { parse_mode: 'HTML', reply_markup: welcomeMarkup.reply_markup });
         }
+
+        const finalText = `✅ Основная валюта установлена: <b>${cur}</b>\n\n` +
+            `⚡️ Теперь можно сразу записывать траты на ходу:\n` +
+            `• <code>5 кофе</code>\n` +
+            `• <code>14.5 такси</code>\n` +
+            `• или списком в несколько строк\n\n` +
+            `📱 Вся детальная история, редактирование и аналитика доступны в удобном дашборде:`;
+
+        const welcomeMarkup = Markup.inlineKeyboard([
+            Markup.button.webApp('🚀 Открыть дашборд', process.env.WEBAPP_URL || 'https://google.com')
+        ]);
+
+        await ctx.editMessageText(finalText, { parse_mode: 'HTML', reply_markup: welcomeMarkup.reply_markup });
     } catch (e) {
-        console.error("Registration Error:", e);
-        await ctx.reply("Произошла ошибка при регистрации. Пожалуйста, попробуйте позже.");
+        console.error('Error in set_cur:', e);
+        await ctx.answerCbQuery('Произошла ошибка', { show_alert: true });
     }
 });
 
@@ -177,8 +190,45 @@ bot.help(async (ctx) => {
         `<b>Полезные команды:</b>\n` +
         `/app — Открыть приложение-дашборд\n` +
         `/stats — Получить быструю базу по категориям (в чат)\n` +
+        `/reset — Сброс и удаление аккаунта\n` +
         `/help — Это меню`;
     return ctx.reply(helpText, { parse_mode: 'HTML' });
+});
+
+bot.command(['reset', 'delete_account'], async (ctx) => {
+    return ctx.reply("⚠️ <b>Вы уверены?</b>\nВсе траты, категории и сам аккаунт будут удалены без возможности восстановления.", {
+        parse_mode: 'HTML',
+        reply_markup: {
+            inline_keyboard: [
+                [Markup.button.callback('Да, удалить всё', 'reset_confirm')],
+                [Markup.button.callback('Отмена', 'reset_cancel')]
+            ]
+        }
+    });
+});
+
+bot.action('reset_cancel', async (ctx) => {
+    await ctx.editMessageText("Удаление отменено.");
+});
+
+bot.action('reset_confirm', async (ctx) => {
+    const userId = ctx.from.id.toString();
+    try {
+        const memberships = await prisma.workspaceMember.findMany({ where: { userId } });
+        const workspaceIds = memberships.map(m => m.workspaceId);
+
+        await prisma.transaction.deleteMany({ where: { userId } });
+        if (workspaceIds.length > 0) {
+            await prisma.category.deleteMany({ where: { workspaceId: { in: workspaceIds } } });
+            await prisma.workspace.deleteMany({ where: { id: { in: workspaceIds } } });
+        }
+        await prisma.user.delete({ where: { id: userId } });
+
+        await ctx.editMessageText("Ваш аккаунт и все данные успешно удалены. До свидания!");
+    } catch (e) {
+        console.error("Delete Error:", e);
+        await ctx.editMessageText("Произошла ошибка. Пожалуйста, попробуйте позже.");
+    }
 });
 
 bot.command('app', async (ctx) => {
