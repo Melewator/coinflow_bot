@@ -18,6 +18,40 @@
   --app-border: var(--tg-theme-hint-color, #e5e7eb);
 }
 
+/* 0. Необрутализм 🗂 */
+[data-theme="brutalist"] {
+  --app-bg: #f8f8f8;
+  --app-card-bg: #ffffff;
+  --app-text: #050505;
+  --app-hint: #555555;
+  --app-button: #ffdf00;
+  --app-button-text: #000000;
+  --app-border: #000000;
+  --accent-contrast: #ffdf00;
+}
+
+/* Специфичные эффекты для необрутализма: жесткие тени и контуры */
+[data-theme="brutalist"] .card,
+[data-theme="brutalist"] .tab-item,
+[data-theme="brutalist"] .btn-action {
+  border: 2px solid #000000 !important;
+  box-shadow: 3px 3px 0px #000000 !important;
+  border-radius: 14px !important;
+}
+
+[data-theme="brutalist"] .btn-action:active,
+[data-theme="brutalist"] .tab-item:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0px #000000 !important;
+}
+
+[data-theme="brutalist"] .cat-icon {
+  border: 1.5px solid #000000 !important;
+  border-radius: 12px !important;
+  box-shadow: 1px 1px 0px #000000 !important;
+}
+
+
 /* 1. Индиго & Бисквит (Orix Splitter) */
 [data-theme="indigo-biscuit"] {
   --app-bg: #27283c;

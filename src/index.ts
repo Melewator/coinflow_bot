@@ -60,8 +60,21 @@ app.put('/api/user/settings', async (req, res) => {
     }
 });
 
+// Очистка данных
+app.post('/api/user/clear-data', async (req, res) => {
+    const { userId } = req.body;
+    if (!userId) return res.status(400).json({ error: 'Missing userId' });
+    try {
+        await prisma.transaction.deleteMany({ where: { userId } });
+        res.json({ success: true, message: 'Data cleared' });
+    } catch (e) {
+        console.error('Clear data error:', e);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
 // Полное удаление аккаунта
-app.delete('/api/user/account', async (req, res) => {
+app.post('/api/user/delete-account', async (req, res) => {
     const { userId } = req.body;
     if (!userId) return res.status(400).json({ error: 'Missing userId' });
     try {

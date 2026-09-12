@@ -19,9 +19,10 @@ interface Transaction {
 }
 
 const THEMES = [
+    { id: 'brutalist', name: 'Необрутализм 🗂', preview: '#ffdf00' },
     { id: 'indigo-biscuit', name: 'Индиго & Бисквит 🍪', preview: '#27283c' },
     { id: 'cyber-noir', name: 'Cyber Noir (Неон) ⚡️', preview: '#0d0f12' },
-    { id: 'lavender-glow', name: 'Лавандовый Пастель �', preview: '#e8e4fc' },
+    { id: 'lavender-glow', name: 'Лавандовый Пастель 🌸', preview: '#e8e4fc' },
 ];
 
 function App() {
@@ -56,7 +57,7 @@ function App() {
     const [themeModalOpen, setThemeModalOpen] = useState(false);
 
     const savedTheme = localStorage.getItem('coinflow-theme');
-    const initialTheme = THEMES.some(t => t.id === savedTheme) ? savedTheme! : 'indigo-biscuit';
+    const initialTheme = THEMES.some(t => t.id === savedTheme) ? savedTheme! : 'brutalist';
     const [currentTheme, setCurrentTheme] = useState(initialTheme);
 
     const saveSettings = async (defCur: string) => {
@@ -279,6 +280,37 @@ function App() {
             alert('Ошибка при удалении');
         }
     };
+
+    const handleClearData = async () => {
+        if (!confirm('Вы уверены, что хотите удалить все записанные траты? PRO-статус сохранится, но историю нельзя будет восстановить.')) return;
+        try {
+            await axios.post(`${API_BASE_URL}/user/clear-data`, { userId });
+            setTransactions([]);
+            triggerHaptic('success');
+            setThemeModalOpen(false);
+        } catch (e) {
+            console.error(e);
+            triggerHaptic('error');
+            alert('Ошибка сервера при очистке');
+        }
+    };
+
+    const handleDeleteAccount = async () => {
+        if (!confirm('⚠️ ВНИМАНИЕ: Это полностью удалит ваш аккаунт, все траты и аннулирует подписку PRO без возможности восстановления. Вы точно уверены?')) return;
+        try {
+            await axios.post(`${API_BASE_URL}/user/delete-account`, { userId });
+            localStorage.clear();
+            triggerHaptic('success');
+            const tg = (window as any).Telegram?.WebApp;
+            if (tg && tg.close) tg.close();
+            else window.location.reload();
+        } catch (e) {
+            console.error(e);
+            triggerHaptic('error');
+            alert('Ошибка при удалении аккаунта');
+        }
+    };
+
 
     const [chartsPeriod, setChartsPeriod] = useState<'month' | 'last_month' | 'all'>('month');
     const [chartsCurrency, setChartsCurrency] = useState<'USD' | 'RUB'>('USD');
@@ -805,8 +837,8 @@ function App() {
                                             key={theme.id}
                                             onClick={() => changeTheme(theme.id)}
                                             className={`flex items-center justify-between p-4 rounded-xl text-left font-bold transition-all ${currentTheme === theme.id
-                                                    ? 'bg-[var(--app-button)]/10 text-[var(--app-text)] border-2 border-[var(--app-button)] theme-active-glow'
-                                                    : 'bg-[var(--app-bg)] text-[var(--app-text)] border-2 border-transparent'
+                                                ? 'bg-[var(--app-button)]/10 text-[var(--app-text)] border-2 border-[var(--app-button)] theme-active-glow'
+                                                : 'bg-[var(--app-bg)] text-[var(--app-text)] border-2 border-transparent'
                                                 }`}
                                         >
                                             <div className="flex items-center gap-3">
@@ -816,6 +848,25 @@ function App() {
                                             {currentTheme === theme.id && <Check size={20} className="text-[var(--app-button)]" />}
                                         </button>
                                     ))}
+                                </div>
+                            </div>
+
+                            {/* Danger Zone */}
+                            <div className="pt-2">
+                                <h3 className="text-xs font-semibold text-red-500/70 uppercase tracking-wider mb-2">Опасная зона</h3>
+                                <div className="flex flex-col gap-2">
+                                    <button
+                                        onClick={handleClearData}
+                                        className="w-full py-3 px-4 rounded-xl font-bold text-sm border-2 border-[var(--app-button)] text-[var(--app-text)] active:scale-95 transition-all opacity-80 hover:opacity-100"
+                                    >
+                                        Очистить историю трат
+                                    </button>
+                                    <button
+                                        onClick={handleDeleteAccount}
+                                        className="w-full py-3 px-4 rounded-xl font-bold text-sm bg-red-500 text-white active:scale-95 transition-all shadow-md shadow-red-500/20"
+                                    >
+                                        Удалить аккаунт полностью
+                                    </button>
                                 </div>
                             </div>
                         </div>
