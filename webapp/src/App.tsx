@@ -55,26 +55,22 @@ function App() {
     const [sortMode, setSortMode] = useState<'newest' | 'oldest' | 'expensive' | 'cheap'>('newest');
 
     const [baseCurrency, setBaseCurrency] = useState(localStorage.getItem('coinflow_default_currency') || 'USD');
-    const [secondaryCurrency, setSecondaryCurrency] = useState(localStorage.getItem('coinflow_secondary_currency') || 'RUB');
-    const [currencyFilter, setCurrencyFilter] = useState<'ALL' | string>(localStorage.getItem('coinflow_default_currency') || 'USD');
+    const [currencyFilter, setCurrencyFilter] = useState<string>(localStorage.getItem('coinflow_default_currency') || 'USD');
 
     const [themeModalOpen, setThemeModalOpen] = useState(false);
     const [currentTheme, setCurrentTheme] = useState(localStorage.getItem('coinflow-theme') || 'brutalist');
 
-    const saveSettings = async (defCur: string, secCur: string) => {
+    const saveSettings = async (defCur: string) => {
         triggerHaptic('selection');
         setBaseCurrency(defCur);
-        setSecondaryCurrency(secCur);
         localStorage.setItem('coinflow_default_currency', defCur);
-        localStorage.setItem('coinflow_secondary_currency', secCur);
-        if (currencyFilter !== 'ALL') setCurrencyFilter(defCur);
+        setCurrencyFilter(defCur);
 
         if (userId) {
             try {
                 await axios.put(`${API_BASE_URL}/user/settings`, {
                     userId,
-                    defaultCurrency: defCur,
-                    secondaryCurrency: secCur
+                    defaultCurrency: defCur
                 });
             } catch (e) { console.error("Failed to save settings", e); }
         }
@@ -126,12 +122,8 @@ function App() {
                     setIsPro(userRes.data?.isPro || false);
                     if (userRes.data?.defaultCurrency) {
                         setBaseCurrency(userRes.data.defaultCurrency);
-                        if (currencyFilter !== 'ALL') setCurrencyFilter(userRes.data.defaultCurrency);
+                        setCurrencyFilter(userRes.data.defaultCurrency);
                         localStorage.setItem('coinflow_default_currency', userRes.data.defaultCurrency);
-                    }
-                    if (userRes.data?.secondaryCurrency) {
-                        setSecondaryCurrency(userRes.data.secondaryCurrency);
-                        localStorage.setItem('coinflow_secondary_currency', userRes.data.secondaryCurrency);
                     }
                 }
 
@@ -251,7 +243,7 @@ function App() {
             setFormData({ amount: tx.amount.toString(), categoryId: tx.category?.id || '', comment: tx.comment || '', currency: tx.currency || 'USD' });
         } else {
             setEditingTx(null);
-            setFormData({ amount: '', categoryId: categories[0]?.id || '', comment: '', currency: 'USD' });
+            setFormData({ amount: '', categoryId: categories[0]?.id || '', comment: '', currency: baseCurrency });
         }
         setModalOpen(true);
     };
@@ -457,16 +449,12 @@ function App() {
 
                         <div>
                             <h2 className="text-[var(--app-hint)] text-sm font-medium mb-1">
-                                Всего за период ({currencyFilter === 'ALL' ? baseCurrency : currencyFilter})
+                                Всего за период ({baseCurrency})
                             </h2>
                             <div className="text-4xl font-extrabold text-[var(--app-text)] tracking-tight overflow-hidden text-ellipsis whitespace-nowrap">
-                                {displayAmount} {currencyFilter !== 'ALL' ? currencyFilter : ''}
+                                {displayAmount} {baseCurrency}
                             </div>
-                            {currencyFilter === 'ALL' && (
-                                <div className="text-[10px] text-[var(--app-hint)] mt-1.5 font-semibold opacity-70">
-                                    * сконвертировано в {baseCurrency} по текущему курсу
-                                </div>
-                            )}
+
                         </div>
 
                         {/* Filters */}
@@ -498,27 +486,8 @@ function App() {
                                     {getSortLabel()}
                                 </button>
 
-                                <div className="flex items-center gap-2 bg-[var(--app-bg)] p-1 rounded-xl">
-                                    <button
-                                        onClick={() => { triggerHaptic('selection'); setCurrencyFilter('ALL'); }}
-                                        className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${currencyFilter === 'ALL' ? 'bg-[var(--app-button)] text-[var(--app-button-text)] shadow-md' : 'text-[var(--app-text)] opacity-70 hover:opacity-100'}`}
-                                    >
-                                        ALL
-                                    </button>
-                                    <button
-                                        onClick={() => { triggerHaptic('selection'); setCurrencyFilter(baseCurrency); }}
-                                        className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${currencyFilter === baseCurrency ? 'bg-[var(--app-button)] text-[var(--app-button-text)] shadow-md' : 'text-[var(--app-text)] opacity-70 hover:opacity-100'}`}
-                                    >
-                                        {baseCurrency}
-                                    </button>
-                                    {baseCurrency !== secondaryCurrency && (
-                                        <button
-                                            onClick={() => { triggerHaptic('selection'); setCurrencyFilter(secondaryCurrency); }}
-                                            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${currencyFilter === secondaryCurrency ? 'bg-[var(--app-button)] text-[var(--app-button-text)] shadow-md' : 'text-[var(--app-text)] opacity-70 hover:opacity-100'}`}
-                                        >
-                                            {secondaryCurrency}
-                                        </button>
-                                    )}
+                                <div className="flex items-center gap-2 px-3 py-1.5 bg-[var(--app-bg)] text-[var(--app-text)] rounded-xl text-xs font-bold opacity-80 border border-[var(--app-border)]/30">
+                                    {baseCurrency}
                                 </div>
                             </div>
                         </div>
@@ -534,22 +503,22 @@ function App() {
                                 <div
                                     key={tx.id}
                                     onClick={() => handleOpenModal(tx)}
-                                    className="cursor-pointer bg-[var(--app-card-bg)] rounded-[20px] p-4 flex items-center justify-between shadow-sm border border-transparent active:border-[var(--app-button)] active:scale-[0.98] transition-all card"
+                                    className="cursor-pointer bg-[var(--app-card-bg)] rounded-[16px] py-2.5 px-3.5 flex items-center justify-between shadow-sm border border-transparent active:border-[var(--app-button)] active:scale-[0.98] transition-all card"
                                 >
-                                    <div className="flex items-center gap-4 min-w-0">
-                                        <div className="w-[46px] h-[46px] flex-shrink-0 rounded-[16px] bg-[var(--app-bg)] flex items-center justify-center text-xl shadow-inner cat-icon">
+                                    <div className="flex items-center gap-3 min-w-0">
+                                        <div className="w-10 h-10 flex-shrink-0 rounded-[12px] bg-[var(--app-bg)] flex items-center justify-center text-lg shadow-inner cat-icon">
                                             {tx.category?.icon || '🏷️'}
                                         </div>
                                         <div className="flex flex-col min-w-0 pr-2">
-                                            <span className="font-bold text-[var(--app-text)] text-[15px] truncate">{tx.category?.name || 'Без категории'}</span>
-                                            <span className="text-[12px] text-[var(--app-hint)] font-medium truncate">
+                                            <span className="text-sm font-bold text-[var(--app-text)] truncate">{tx.category?.name || 'Без категории'}</span>
+                                            <span className="text-xs text-[var(--app-hint)] font-medium truncate">
                                                 {tx.comment || formatDate(tx.date)}
                                             </span>
                                         </div>
                                     </div>
                                     <div className="flex flex-col items-end flex-shrink-0 pl-1">
-                                        <span className="font-extrabold text-[16px] text-[var(--app-text)] whitespace-nowrap">
-                                            -{tx.amount} <span className="text-[14px] text-[var(--app-hint)] opacity-80">{tx.currency}</span>
+                                        <span className="font-extrabold text-sm text-[var(--app-text)] whitespace-nowrap">
+                                            -{tx.amount} <span className="text-[12px] text-[var(--app-hint)] opacity-80">{tx.currency}</span>
                                         </span>
                                     </div>
                                 </div>
@@ -718,7 +687,7 @@ function App() {
                             <div className="flex flex-col items-center justify-center p-6 bg-[var(--app-bg)] rounded-3xl relative overflow-hidden">
                                 <span className="text-[var(--app-hint)] text-xs uppercase font-bold tracking-widest mb-1 z-10">Текущий кросс-курс</span>
                                 <div className="text-3xl font-black text-[var(--app-text)] z-10">
-                                    1 {baseCurrency} = {((exchangeRates.rates[secondaryCurrency] || 1) / (exchangeRates.rates[baseCurrency] || 1)).toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 4 })} {secondaryCurrency}
+                                    1 {baseCurrency} = {((exchangeRates.rates[calcTo] || 1) / (exchangeRates.rates[baseCurrency] || 1)).toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 4 })} {calcTo}
                                 </div>
                                 <span className="text-[var(--app-hint)] text-[10px] mt-2 opacity-60 z-10">
                                     Обновлено: {exchangeRates.lastUpdate || 'Сейчас'}
@@ -820,26 +789,15 @@ function App() {
                         <div className="flex flex-col gap-5">
                             {/* Базовая валюта */}
                             <div>
-                                <h3 className="text-xs font-semibold text-[var(--app-hint)] uppercase tracking-wider mb-2">Основные валюты дашборда</h3>
+                                <h3 className="text-xs font-semibold text-[var(--app-hint)] uppercase tracking-wider mb-2">Настройки региона</h3>
                                 <div className="flex flex-col gap-2">
-                                    <div className="flex items-center justify-between bg-[var(--app-bg)] rounded-xl py-2 px-3">
+                                    <div className="flex items-center justify-between bg-[var(--app-bg)] rounded-xl py-3 px-4 shadow-sm border border-[var(--app-border)]/30">
                                         <span className="text-sm font-semibold text-[var(--app-text)] opacity-80">Основная валюта</span>
                                         <select
                                             value={baseCurrency}
-                                            onChange={e => saveSettings(e.target.value, secondaryCurrency)}
-                                            className="bg-transparent text-[var(--app-text)] font-bold text-sm outline-none cursor-pointer"
-                                            style={{ backgroundColor: 'var(--app-bg)', color: 'var(--app-text)' }}
-                                        >
-                                            {supportedCurrencies.map(c => <option key={c} value={c} style={{ backgroundColor: 'var(--app-bg)', color: 'var(--app-text)' }}>{c}</option>)}
-                                        </select>
-                                    </div>
-                                    <div className="flex items-center justify-between bg-[var(--app-bg)] rounded-xl py-2 px-3">
-                                        <span className="text-sm font-semibold text-[var(--app-text)] opacity-80">Вторая валюта (Быстрый доступ)</span>
-                                        <select
-                                            value={secondaryCurrency}
-                                            onChange={e => saveSettings(baseCurrency, e.target.value)}
-                                            className="bg-transparent text-[var(--app-text)] font-bold text-sm outline-none cursor-pointer"
-                                            style={{ backgroundColor: 'var(--app-bg)', color: 'var(--app-text)' }}
+                                            onChange={e => saveSettings(e.target.value)}
+                                            className="bg-transparent text-[var(--app-text)] font-black text-sm outline-none cursor-pointer"
+                                            style={{ backgroundColor: 'transparent', color: 'var(--app-text)' }}
                                         >
                                             {supportedCurrencies.map(c => <option key={c} value={c} style={{ backgroundColor: 'var(--app-bg)', color: 'var(--app-text)' }}>{c}</option>)}
                                         </select>
@@ -855,10 +813,10 @@ function App() {
                                         <button
                                             key={theme.id}
                                             onClick={() => changeTheme(theme.id)}
-                                            className={`flex items-center justify-between p-4 rounded-xl text-left font-bold transition-all ${currentTheme === theme.id ? 'bg-[var(--app-button)]/10 text-[var(--app-button)] border border-[var(--app-button)]/30' : 'bg-[var(--app-bg)] text-[var(--app-text)] border border-transparent'}`}
+                                            className={`flex items-center justify-between p-4 rounded-xl text-left font-bold transition-all theme-btn ${currentTheme === theme.id ? 'theme-btn-active bg-[var(--app-button)]/10 text-[var(--app-button)] border border-[var(--app-button)]/30' : 'bg-[var(--app-bg)] text-[var(--app-text)] border border-transparent'}`}
                                         >
                                             {theme.name}
-                                            {currentTheme === theme.id && <Check size={20} />}
+                                            {currentTheme === theme.id && <Check size={20} className="theme-check" />}
                                         </button>
                                     ))}
                                 </div>
@@ -899,12 +857,6 @@ function App() {
                                             className={`px-4 font-bold text-sm transition-colors ${formData.currency === baseCurrency ? 'bg-[var(--app-button)] text-[var(--app-button-text)]' : 'text-[var(--app-hint)] active:bg-black/5'}`}
                                         >
                                             {baseCurrency}
-                                        </button>
-                                        <button
-                                            onClick={() => { triggerHaptic('selection'); setFormData({ ...formData, currency: secondaryCurrency }); }}
-                                            className={`px-4 font-bold text-sm transition-colors ${formData.currency === secondaryCurrency ? 'bg-[var(--app-button)] text-[var(--app-button-text)]' : 'text-[var(--app-hint)] active:bg-black/5'}`}
-                                        >
-                                            {secondaryCurrency}
                                         </button>
                                     </div>
                                 </div>
