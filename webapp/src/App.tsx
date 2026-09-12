@@ -19,6 +19,7 @@ interface Transaction {
 }
 
 const THEMES = [
+    { id: 'brutalist', name: 'Необрутализм 🗂' },
     { id: 'default', name: 'Системная (Telegram)' },
     { id: 'dark-slate', name: 'Тёмная классика' },
     { id: 'oled', name: 'OLED Black' },
@@ -58,7 +59,7 @@ function App() {
     const [currencyFilter, setCurrencyFilter] = useState<'ALL' | string>(localStorage.getItem('coinflow_default_currency') || 'USD');
 
     const [themeModalOpen, setThemeModalOpen] = useState(false);
-    const [currentTheme, setCurrentTheme] = useState(localStorage.getItem('coinflow-theme') || 'default');
+    const [currentTheme, setCurrentTheme] = useState(localStorage.getItem('coinflow-theme') || 'brutalist');
 
     const saveSettings = async (defCur: string, secCur: string) => {
         triggerHaptic('selection');
@@ -415,19 +416,19 @@ function App() {
             <div className="flex px-2 pt-3">
                 <button
                     onClick={() => handleTabClick('finance')}
-                    className={`px-4 py-2.5 rounded-t-2xl font-bold transition-colors ${activeTab === 'finance' ? 'bg-[var(--app-card-bg)] text-[var(--app-text)]' : 'bg-[var(--app-card-bg)]/50 text-[var(--app-hint)] mt-1'}`}
+                    className={`px-4 py-2.5 rounded-t-2xl font-black tracking-tight transition-colors tab-item ${activeTab === 'finance' ? 'bg-[var(--app-card-bg)] text-[var(--app-text)]' : 'bg-[var(--app-card-bg)]/50 text-[var(--app-hint)] mt-1'}`}
                 >
                     Мои финансы
                 </button>
                 <button
                     onClick={() => handleTabClick('charts')}
-                    className={`px-4 py-2.5 rounded-t-2xl font-bold transition-colors flex items-center gap-1.5 ${activeTab === 'charts' ? 'bg-[var(--app-card-bg)] text-[var(--app-text)]' : 'bg-[var(--app-card-bg)]/50 text-[var(--app-hint)] mt-1'}`}
+                    className={`px-4 py-2.5 rounded-t-2xl font-black tracking-tight transition-colors flex items-center gap-1.5 tab-item ${activeTab === 'charts' ? 'bg-[var(--app-card-bg)] text-[var(--app-text)]' : 'bg-[var(--app-card-bg)]/50 text-[var(--app-hint)] mt-1'}`}
                 >
                     Графики {!isPro && <Lock size={14} />}
                 </button>
                 <button
                     onClick={() => handleTabClick('rates')}
-                    className={`px-4 py-2.5 rounded-t-2xl font-bold transition-colors flex items-center gap-1.5 ${activeTab === 'rates' ? 'bg-[var(--app-card-bg)] text-[var(--app-text)]' : 'bg-[var(--app-card-bg)]/50 text-[var(--app-hint)] mt-1'}`}
+                    className={`px-4 py-2.5 rounded-t-2xl font-black tracking-tight transition-colors flex items-center gap-1.5 tab-item ${activeTab === 'rates' ? 'bg-[var(--app-card-bg)] text-[var(--app-text)]' : 'bg-[var(--app-card-bg)]/50 text-[var(--app-hint)] mt-1'}`}
                 >
                     Курсы
                 </button>
@@ -435,11 +436,11 @@ function App() {
 
             {activeTab === 'finance' && (
                 <>
-                    <div className="flex flex-col gap-5 bg-[var(--app-card-bg)] rounded-3xl rounded-tl-none p-5 shadow-sm border border-[var(--app-border)]/40 transition-colors">
+                    <div className="flex flex-col gap-5 bg-[var(--app-card-bg)] rounded-3xl rounded-tl-none p-5 shadow-sm border border-[var(--app-border)]/40 transition-colors card">
 
                         <header className="flex items-center justify-between">
                             <div className="flex flex-col">
-                                <h1 className="text-[var(--app-text)] text-2xl font-bold tracking-tight">
+                                <h1 className="text-[var(--app-text)] text-2xl font-black tracking-tight">
                                     Мои расходы
                                 </h1>
                                 <p className="text-[var(--app-hint)] text-sm mt-0.5">
@@ -533,10 +534,10 @@ function App() {
                                 <div
                                     key={tx.id}
                                     onClick={() => handleOpenModal(tx)}
-                                    className="cursor-pointer bg-[var(--app-card-bg)] rounded-[20px] p-4 flex items-center justify-between shadow-sm border border-transparent active:border-[var(--app-button)] active:scale-[0.98] transition-all"
+                                    className="cursor-pointer bg-[var(--app-card-bg)] rounded-[20px] p-4 flex items-center justify-between shadow-sm border border-transparent active:border-[var(--app-button)] active:scale-[0.98] transition-all card"
                                 >
                                     <div className="flex items-center gap-4 min-w-0">
-                                        <div className="w-[46px] h-[46px] flex-shrink-0 rounded-[16px] bg-[var(--app-bg)] flex items-center justify-center text-xl shadow-inner">
+                                        <div className="w-[46px] h-[46px] flex-shrink-0 rounded-[16px] bg-[var(--app-bg)] flex items-center justify-center text-xl shadow-inner cat-icon">
                                             {tx.category?.icon || '🏷️'}
                                         </div>
                                         <div className="flex flex-col min-w-0 pr-2">
@@ -698,76 +699,95 @@ function App() {
 
             {activeTab === 'rates' && (
                 <div className="flex flex-col gap-6 bg-[var(--app-card-bg)] rounded-3xl rounded-tl-none p-5 shadow-sm border border-[var(--app-border)]/40 transition-colors pb-8 min-h-[70vh]">
-                    <div className="flex flex-col items-center justify-center p-6 bg-[var(--app-bg)] rounded-3xl relative overflow-hidden">
-                        <span className="text-[var(--app-hint)] text-xs uppercase font-bold tracking-widest mb-1 z-10">Текущий кросс-курс</span>
-                        <div className="text-3xl font-black text-[var(--app-text)] z-10">
-                            1 {baseCurrency} = {((exchangeRates.rates[secondaryCurrency] || 1) / (exchangeRates.rates[baseCurrency] || 1)).toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 4 })} {secondaryCurrency}
+                    {!isPro ? (
+                        <div className="flex flex-col items-center justify-center p-8 text-center bg-[var(--app-bg)] rounded-3xl mt-4 h-full min-h-[50vh]">
+                            <Lock size={48} className="text-[var(--app-button)] mb-4 opacity-80" />
+                            <h2 className="text-xl font-black text-[var(--app-text)] mb-3 tracking-tight">Мультивалютный конвертер</h2>
+                            <p className="text-[var(--app-hint)] text-sm mb-6 leading-relaxed font-medium">
+                                Эта функция доступна в PRO версии. Контролируйте свои финансы в любых валютах и отслеживайте актуальные курсы обмена.
+                            </p>
+                            <button
+                                onClick={() => setProModalOpen(true)}
+                                className="px-6 py-4 bg-[var(--app-button)] text-[var(--app-button-text)] font-black rounded-xl active:scale-95 transition-transform shadow-md btn-action"
+                            >
+                                Разблокировать PRO
+                            </button>
                         </div>
-                        <span className="text-[var(--app-hint)] text-[10px] mt-2 opacity-60 z-10">
-                            Обновлено: {exchangeRates.lastUpdate || 'Сейчас'}
-                        </span>
+                    ) : (
+                        <>
+                            <div className="flex flex-col items-center justify-center p-6 bg-[var(--app-bg)] rounded-3xl relative overflow-hidden">
+                                <span className="text-[var(--app-hint)] text-xs uppercase font-bold tracking-widest mb-1 z-10">Текущий кросс-курс</span>
+                                <div className="text-3xl font-black text-[var(--app-text)] z-10">
+                                    1 {baseCurrency} = {((exchangeRates.rates[secondaryCurrency] || 1) / (exchangeRates.rates[baseCurrency] || 1)).toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 4 })} {secondaryCurrency}
+                                </div>
+                                <span className="text-[var(--app-hint)] text-[10px] mt-2 opacity-60 z-10">
+                                    Обновлено: {exchangeRates.lastUpdate || 'Сейчас'}
+                                </span>
 
-                        <div className="absolute -top-10 -right-10 w-32 h-32 bg-[var(--app-button)]/10 rounded-full blur-2xl"></div>
-                        <div className="absolute -bottom-10 -left-10 w-32 h-32 bg-[var(--app-button)]/10 rounded-full blur-2xl"></div>
-                    </div>
-
-                    <div className="flex flex-col gap-4 mt-2">
-                        <h3 className="text-xs font-bold text-[var(--app-hint)] uppercase tracking-wider pl-1">Калькулятор</h3>
-
-                        <div className="flex bg-[var(--app-bg)] rounded-2xl overflow-hidden focus-within:ring-2 focus-within:ring-[var(--app-button)] transition-shadow">
-                            <input
-                                type="number"
-                                value={calcAmount}
-                                onChange={e => setCalcAmount(e.target.value)}
-                                placeholder="Сумма..."
-                                className="w-full bg-transparent text-[var(--app-text)] text-lg px-4 py-4 outline-none border-none font-semibold text-center"
-                            />
-                            <div className="flex pl-2 py-2 pr-2 bg-[var(--app-card-bg)] gap-2 border-l border-[var(--app-border)]/30">
-                                <select
-                                    className="bg-transparent text-[var(--app-text)] font-black text-xs outline-none cursor-pointer"
-                                    style={{ backgroundColor: 'var(--app-card-bg)', color: 'var(--app-text)' }}
-                                    value={calcFrom}
-                                    onChange={e => setCalcFrom(e.target.value)}
-                                >
-                                    {supportedCurrencies.map(c => <option key={c} value={c} style={{ backgroundColor: 'var(--app-card-bg)', color: 'var(--app-text)' }}>{c}</option>)}
-                                </select>
-                                <button
-                                    onClick={() => {
-                                        triggerHaptic('selection');
-                                        const temp = calcFrom;
-                                        setCalcFrom(calcTo);
-                                        setCalcTo(temp);
-                                    }}
-                                    className="flex items-center justify-center text-[var(--app-button)]"
-                                >
-                                    <ArrowDownUp size={16} />
-                                </button>
-                                <select
-                                    className="bg-transparent text-[var(--app-text)] font-black text-xs outline-none cursor-pointer"
-                                    style={{ backgroundColor: 'var(--app-card-bg)', color: 'var(--app-text)' }}
-                                    value={calcTo}
-                                    onChange={e => setCalcTo(e.target.value)}
-                                >
-                                    {supportedCurrencies.map(c => <option key={c} value={c} style={{ backgroundColor: 'var(--app-card-bg)', color: 'var(--app-text)' }}>{c}</option>)}
-                                </select>
+                                <div className="absolute -top-10 -right-10 w-32 h-32 bg-[var(--app-button)]/10 rounded-full blur-2xl"></div>
+                                <div className="absolute -bottom-10 -left-10 w-32 h-32 bg-[var(--app-button)]/10 rounded-full blur-2xl"></div>
                             </div>
-                        </div>
 
-                        <div className="bg-[var(--app-bg)] p-4 rounded-2xl flex flex-col items-center justify-center mt-2 shadow-inner">
-                            <span className="text-[var(--app-hint)] text-[10px] uppercase font-bold tracking-widest mb-1">Итого</span>
-                            <span className="text-2xl font-black text-[var(--app-text)]">
-                                {(() => {
-                                    const val = parseFloat(calcAmount);
-                                    if (isNaN(val)) return '0.00';
-                                    const rateFrom = exchangeRates.rates[calcFrom] || 1;
-                                    const rateTo = exchangeRates.rates[calcTo] || 1;
-                                    const amountInUsd = val / rateFrom;
-                                    const result = amountInUsd * rateTo;
-                                    return result.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ' + calcTo;
-                                })()}
-                            </span>
-                        </div>
-                    </div>
+
+                            <div className="flex flex-col gap-4 mt-2">
+                                <h3 className="text-xs font-bold text-[var(--app-hint)] uppercase tracking-wider pl-1">Калькулятор</h3>
+
+                                <div className="flex bg-[var(--app-bg)] rounded-2xl overflow-hidden focus-within:ring-2 focus-within:ring-[var(--app-button)] transition-shadow">
+                                    <input
+                                        type="number"
+                                        value={calcAmount}
+                                        onChange={e => setCalcAmount(e.target.value)}
+                                        placeholder="Сумма..."
+                                        className="w-full bg-transparent text-[var(--app-text)] text-lg px-4 py-4 outline-none border-none font-semibold text-center"
+                                    />
+                                    <div className="flex pl-2 py-2 pr-2 bg-[var(--app-card-bg)] gap-2 border-l border-[var(--app-border)]/30">
+                                        <select
+                                            className="bg-transparent text-[var(--app-text)] font-black text-xs outline-none cursor-pointer"
+                                            style={{ backgroundColor: 'var(--app-card-bg)', color: 'var(--app-text)' }}
+                                            value={calcFrom}
+                                            onChange={e => setCalcFrom(e.target.value)}
+                                        >
+                                            {supportedCurrencies.map(c => <option key={c} value={c} style={{ backgroundColor: 'var(--app-card-bg)', color: 'var(--app-text)' }}>{c}</option>)}
+                                        </select>
+                                        <button
+                                            onClick={() => {
+                                                triggerHaptic('selection');
+                                                const temp = calcFrom;
+                                                setCalcFrom(calcTo);
+                                                setCalcTo(temp);
+                                            }}
+                                            className="flex items-center justify-center text-[var(--app-button)]"
+                                        >
+                                            <ArrowDownUp size={16} />
+                                        </button>
+                                        <select
+                                            className="bg-transparent text-[var(--app-text)] font-black text-xs outline-none cursor-pointer"
+                                            style={{ backgroundColor: 'var(--app-card-bg)', color: 'var(--app-text)' }}
+                                            value={calcTo}
+                                            onChange={e => setCalcTo(e.target.value)}
+                                        >
+                                            {supportedCurrencies.map(c => <option key={c} value={c} style={{ backgroundColor: 'var(--app-card-bg)', color: 'var(--app-text)' }}>{c}</option>)}
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div className="bg-[var(--app-bg)] p-4 rounded-2xl flex flex-col items-center justify-center mt-2 shadow-inner">
+                                    <span className="text-[var(--app-hint)] text-[10px] uppercase font-bold tracking-widest mb-1">Итого</span>
+                                    <span className="text-2xl font-black text-[var(--app-text)]">
+                                        {(() => {
+                                            const val = parseFloat(calcAmount);
+                                            if (isNaN(val)) return '0.00';
+                                            const rateFrom = exchangeRates.rates[calcFrom] || 1;
+                                            const rateTo = exchangeRates.rates[calcTo] || 1;
+                                            const amountInUsd = val / rateFrom;
+                                            const result = amountInUsd * rateTo;
+                                            return result.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ' + calcTo;
+                                        })()}
+                                    </span>
+                                </div>
+                            </div>
+                        </>
+                    )}
                 </div>
             )}
 
@@ -780,7 +800,7 @@ function App() {
             {/* FAB */}
             <button
                 onClick={() => handleOpenModal()}
-                className="fixed bottom-6 right-6 w-[56px] h-[56px] bg-[var(--app-button)] text-[var(--app-button-text)] rounded-full flex items-center justify-center shadow-lg shadow-blue-500/30 active:scale-90 transition-transform"
+                className="fixed bottom-6 right-6 w-[56px] h-[56px] bg-[var(--app-button)] text-[var(--app-button-text)] rounded-full flex items-center justify-center shadow-lg shadow-blue-500/30 active:scale-90 transition-transform btn-action"
             >
                 <Plus size={28} className="stroke-[3]" />
             </button>
@@ -927,7 +947,7 @@ function App() {
                             )}
                             <button
                                 onClick={handleSave}
-                                className="flex-1 py-4 bg-[var(--app-button)] text-[var(--app-button-text)] rounded-[16px] font-bold text-lg active:scale-[0.98] transition-all shadow-md"
+                                className="flex-1 py-4 bg-[var(--app-button)] text-[var(--app-button-text)] rounded-[16px] font-black text-lg active:scale-[0.98] transition-all shadow-md btn-action"
                             >
                                 Сохранить
                             </button>
@@ -965,13 +985,13 @@ function App() {
                         <div className="flex flex-col gap-4">
                             <button
                                 onClick={handleBuyPro}
-                                className="w-full py-4 bg-[#212121] text-white rounded-[16px] font-bold active:scale-[0.98] transition-transform flex flex-col items-center justify-center gap-0.5 relative overflow-hidden shadow-lg shadow-black/20"
+                                className="w-full py-4 bg-[var(--app-button)] text-[var(--app-button-text)] rounded-[16px] font-black active:scale-[0.98] transition-transform flex flex-col items-center justify-center gap-0.5 relative overflow-hidden shadow-lg shadow-black/20 btn-action"
                             >
                                 <span className="absolute top-2 right-2 bg-red-500 text-white text-[10px] uppercase font-extrabold px-2 py-0.5 rounded-full rotate-[12deg] shadow-sm">-80%</span>
                                 <div className="flex items-center gap-2 text-[18px]">
                                     ⭐️ Купить за 5 XTR
                                 </div>
-                                <div className="text-[12px] text-white/50 line-through">25 XTR (без скидки)</div>
+                                <div className="text-[12px] opacity-70 line-through">25 XTR (без скидки)</div>
                             </button>
 
                             {!showPromoInput ? (
@@ -993,7 +1013,7 @@ function App() {
                                         />
                                         <button
                                             onClick={handleRedeemPromo}
-                                            className="px-4 bg-[var(--app-button)] text-[var(--app-button-text)] font-semibold active:opacity-80 transition-opacity"
+                                            className="px-4 bg-[var(--app-button)] text-[var(--app-button-text)] font-semibold active:opacity-80 transition-opacity btn-action"
                                         >
                                             OK
                                         </button>
