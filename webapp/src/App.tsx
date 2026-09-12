@@ -19,13 +19,9 @@ interface Transaction {
 }
 
 const THEMES = [
-    { id: 'brutalist', name: 'Необрутализм 🗂' },
-    { id: 'default', name: 'Системная (Telegram)' },
-    { id: 'dark-slate', name: 'Тёмная классика' },
-    { id: 'oled', name: 'OLED Black' },
-    { id: 'emerald', name: 'Изумруд' },
-    { id: 'forest', name: 'Лесной мох 🌲' },
-    { id: 'light', name: 'Светлая тема' },
+    { id: 'indigo-biscuit', name: 'Индиго & Бисквит 🍪', preview: '#27283c' },
+    { id: 'cyber-noir', name: 'Cyber Noir (Неон) ⚡️', preview: '#0d0f12' },
+    { id: 'lavender-glow', name: 'Лавандовый Пастель �', preview: '#e8e4fc' },
 ];
 
 function App() {
@@ -58,7 +54,10 @@ function App() {
     const [currencyFilter, setCurrencyFilter] = useState<string>(localStorage.getItem('coinflow_default_currency') || 'USD');
 
     const [themeModalOpen, setThemeModalOpen] = useState(false);
-    const [currentTheme, setCurrentTheme] = useState(localStorage.getItem('coinflow-theme') || 'brutalist');
+
+    const savedTheme = localStorage.getItem('coinflow-theme');
+    const initialTheme = THEMES.some(t => t.id === savedTheme) ? savedTheme! : 'indigo-biscuit';
+    const [currentTheme, setCurrentTheme] = useState(initialTheme);
 
     const saveSettings = async (defCur: string) => {
         triggerHaptic('selection');
@@ -101,11 +100,7 @@ function App() {
             tg.expand();
         }
 
-        if (currentTheme !== 'default') {
-            document.documentElement.setAttribute('data-theme', currentTheme);
-        } else {
-            document.documentElement.removeAttribute('data-theme');
-        }
+        document.documentElement.setAttribute('data-theme', currentTheme);
 
         const loadInitialData = async () => {
             if (!userId) setLoading(false);
@@ -152,11 +147,7 @@ function App() {
         triggerHaptic('selection');
         setCurrentTheme(themeId);
         localStorage.setItem('coinflow-theme', themeId);
-        if (themeId !== 'default') {
-            document.documentElement.setAttribute('data-theme', themeId);
-        } else {
-            document.documentElement.removeAttribute('data-theme');
-        }
+        document.documentElement.setAttribute('data-theme', themeId);
         setThemeModalOpen(false);
     };
 
@@ -813,10 +804,16 @@ function App() {
                                         <button
                                             key={theme.id}
                                             onClick={() => changeTheme(theme.id)}
-                                            className={`flex items-center justify-between p-4 rounded-xl text-left font-bold transition-all theme-btn ${currentTheme === theme.id ? 'theme-btn-active bg-[var(--app-button)]/10 text-[var(--app-button)] border border-[var(--app-button)]/30' : 'bg-[var(--app-bg)] text-[var(--app-text)] border border-transparent'}`}
+                                            className={`flex items-center justify-between p-4 rounded-xl text-left font-bold transition-all ${currentTheme === theme.id
+                                                    ? 'bg-[var(--app-button)]/10 text-[var(--app-text)] border-2 border-[var(--app-button)] theme-active-glow'
+                                                    : 'bg-[var(--app-bg)] text-[var(--app-text)] border-2 border-transparent'
+                                                }`}
                                         >
-                                            {theme.name}
-                                            {currentTheme === theme.id && <Check size={20} className="theme-check" />}
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-5 h-5 rounded-full border border-black/20" style={{ backgroundColor: theme.preview }} />
+                                                <span>{theme.name}</span>
+                                            </div>
+                                            {currentTheme === theme.id && <Check size={20} className="text-[var(--app-button)]" />}
                                         </button>
                                     ))}
                                 </div>
