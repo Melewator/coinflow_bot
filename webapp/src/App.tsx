@@ -167,15 +167,6 @@ function App() {
     };
 
     const handleTabClick = (tab: 'finance' | 'charts' | 'rates') => {
-        if (tab === 'charts') {
-            triggerHaptic('selection');
-            if (!isPro) {
-                setProModalOpen(true);
-                return;
-            }
-            setActiveTab('charts');
-            return;
-        }
         triggerHaptic('selection');
         setActiveTab(tab);
     };
@@ -439,7 +430,7 @@ function App() {
                     onClick={() => handleTabClick('charts')}
                     className={`px-4 py-2.5 rounded-t-2xl font-black tracking-tight transition-colors flex items-center gap-1.5 tab-item ${activeTab === 'charts' ? 'bg-[var(--app-card-bg)] text-[var(--app-text)]' : 'bg-[var(--app-card-bg)]/50 text-[var(--app-hint)] mt-1'}`}
                 >
-                    Графики {!isPro && <Lock size={14} />}
+                    Графики
                 </button>
                 <button
                     onClick={() => handleTabClick('rates')}
@@ -451,7 +442,7 @@ function App() {
 
             {activeTab === 'finance' && (
                 <>
-                    <div className="flex flex-col gap-5 bg-[var(--app-card-bg)] rounded-3xl rounded-tl-none p-5 shadow-sm border border-[var(--app-border)]/40 transition-colors card">
+                    <div className="flex flex-col gap-5 bg-[var(--app-card-bg)] rounded-3xl p-5 shadow-sm border border-[var(--app-border)]/40 transition-colors card">
 
                         <header className="flex items-center justify-between">
                             <div className="flex flex-col">
@@ -552,7 +543,7 @@ function App() {
             )}
 
             {activeTab === 'charts' && (
-                <div className="flex flex-col gap-6 bg-[var(--app-card-bg)] rounded-3xl rounded-tl-none p-5 shadow-sm border border-[var(--app-border)]/40 transition-colors pb-8 min-h-[70vh]">
+                <div className="flex flex-col gap-6 bg-[var(--app-card-bg)] rounded-3xl p-5 shadow-sm border border-[var(--app-border)]/40 transition-colors pb-8 min-h-[70vh]">
                     {/* Charts Filters */}
                     <div className="flex justify-between items-center gap-2">
                         <select
@@ -690,7 +681,7 @@ function App() {
             )}
 
             {activeTab === 'rates' && (
-                <div className="flex flex-col gap-6 bg-[var(--app-card-bg)] rounded-3xl rounded-tl-none p-5 shadow-sm border border-[var(--app-border)]/40 transition-colors pb-8 min-h-[70vh]">
+                <div className="flex flex-col gap-6 bg-[var(--app-card-bg)] rounded-3xl p-5 shadow-sm border border-[var(--app-border)]/40 transition-colors pb-8 min-h-[70vh]">
                     {!isPro ? (
                         <div className="flex flex-col items-center justify-center p-8 text-center bg-[var(--app-bg)] rounded-3xl mt-4 h-full min-h-[50vh]">
                             <Lock size={48} className="text-[var(--app-button)] mb-4 opacity-80" />
