@@ -3,6 +3,10 @@ import express from 'express';
 import cors from 'cors';
 import { prisma } from './db';
 
+import path from 'path';
+// @ts-ignore
+import { GoogleGenAI } from '@google/genai';
+
 // Глобальная сериализация BigInt для Express
 (BigInt.prototype as any).toJSON = function () {
     return this.toString();
@@ -11,6 +15,8 @@ import { prisma } from './db';
 const app = express();
 app.use(cors({ origin: '*' })); // Разрешаем доступ со всех доменов (включая Netlify и ngrok)
 app.use(express.json());
+
+app.use(express.static(path.join(__dirname, '../public')));
 
 app.get('/api/user/:userId', async (req, res) => {
     try {
@@ -70,6 +76,64 @@ app.post('/api/user/clear-data', async (req, res) => {
     } catch (e) {
         console.error('Clear data error:', e);
         res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+app.post('/api/widget/chat', async (req, res) => {
+    try {
+        const { message, history } = req.body;
+        if (!message) return res.status(400).json({ error: 'Message required' });
+
+        const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+
+        let responseText = "";
+        try {
+            const systemContext = "Ты умный консультант сервиса CoinFlow — Telegram-ассистента для учета личных финансов. Отвечай кратко, доброжелательно и по делу. Помогай разобраться с функциями бота и мягко предлагай протестировать бота в Telegram (@coinflow_private_bot) или оставить свой контакт для связи.";
+
+            const contents = [];
+            if (history && Array.isArray(history)) {
+                for (const h of history) {
+                    if (h.content) {
+                        contents.push({
+                            role: h.role === 'model' ? 'model' : 'user',
+                            parts: [{ text: h.content }]
+                        });
+                    }
+                }
+            }
+
+            const finalMessage = message;
+
+            contents.push({ role: 'user', parts: [{ text: finalMessage }] });
+
+            const aiResponse = await ai.models.generateContent({
+                model: 'gemini-2.5-flash',
+                contents: contents,
+                config: {
+                    systemInstruction: systemContext
+                }
+            });
+            responseText = aiResponse.text || "Извините, не могу сейчас ответить. Попробуйте написать в Telegram.";
+        } catch (e) {
+            console.error("Gemini err:", e);
+            responseText = "Ой, я немного задумался. Напишите, пожалуйста, позже или перейдите в нашего Telegram-бота!";
+        }
+
+        // Проверка на лид (email, phone, @username)
+        const leadPattern = /([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)|(@[a-zA-Z0-9_]+)|(\+?\d{1,3}[\s-]?\(?\d{2,3}\)?[\s-]?\d{3}[\s-]?\d{2}[\s-]?\d{2})/g;
+        if (leadPattern.test(message)) {
+            const adminId = process.env.ADMIN_CHAT_ID || '8901264144'; // Example fallback
+            try {
+                await bot.telegram.sendMessage(adminId, `🔔 <b>Новый лид из веб-виджета!</b>\nСообщение: <i>${message}</i>`, { parse_mode: 'HTML' });
+            } catch (e) {
+                console.error("Failed to notify admin about lead", e);
+            }
+        }
+
+        res.json({ reply: responseText });
+    } catch (e) {
+        console.error("Widget API Error:", e);
+        res.status(500).json({ error: 'Server error' });
     }
 });
 

@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CoinFlow - Учет финансов в Telegram</title>
+    <style>
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: #0f1115;
+            color: #fff;
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        .hero {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            background: radial-gradient(circle at top, #2a2d3e 0%, #0f1115 60%);
+            padding: 2rem;
+        }
+
+        h1 {
+            font-size: 3.5rem;
+            margin-bottom: 1rem;
+            background: linear-gradient(to right, #4facfe 0%, #00f2fe 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-weight: 800;
+        }
+
+        p {
+            font-size: 1.25rem;
+            color: #9fa2c4;
+            max-width: 600px;
+            margin-bottom: 2.5rem;
+        }
+
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 2rem;
+            max-width: 1000px;
+            width: 100%;
+        }
+
+        .feature-card {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 2rem;
+            border-radius: 1.5rem;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            transition: transform 0.3s ease;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-5px);
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .feature-card h3 {
+            font-size: 1.5rem;
+            margin-top: 0;
+            color: #fff;
+        }
+
+        .feature-card p {
+            font-size: 1rem;
+            margin-bottom: 0;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="hero">
+        <h1>CoinFlow</h1>
+        <p>Ваша личная бухгалтерия прямо в Telegram. Используйте AI для распознавания трат и получайте подробную
+            статистику на красивом дашборде.</p>
+
+        <div class="features">
+            <div class="feature-card">
+                <h3>🤖 Нейропарсинг</h3>
+                <p>Просто напишите "5 кофе старбакс" и мы автоматически определим категорию, сумму и оставим
+                    комментарий.</p>
+            </div>
+            <div class="feature-card">
+                <h3>📊 Красивый Дашборд</h3>
+                <p>Единое веб-приложение для просмотра полной истории ваших транзакций, аналитики и графиков.</p>
+            </div>
+            <div class="feature-card">
+                <h3>💎 PRO Доступ</h3>
+                <p>Разблокируйте мультивалютный учет и еще больше уникальных функций для подробной аналитики.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- AI Widget Script -->
+    <script src="/widget.js"></script>
+</body>
+
+</html>

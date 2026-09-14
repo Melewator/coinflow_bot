@@ -168,7 +168,7 @@ bot.action(/^set_cur_(.+)$/, async (ctx) => {
             `📱 Вся детальная история, редактирование и аналитика доступны в удобном дашборде:`;
 
         const welcomeMarkup = Markup.inlineKeyboard([
-            Markup.button.webApp('🚀 Открыть дашборд', process.env.WEBAPP_URL || 'https://google.com')
+            Markup.button.webApp('🚀 Открыть дашборд', process.env.WEBAPP_URL || 'https://coinflow-bot.vercel.app/')
         ]);
 
         await ctx.editMessageText(finalText, { parse_mode: 'HTML', reply_markup: welcomeMarkup.reply_markup });
@@ -233,7 +233,7 @@ bot.action('reset_confirm', async (ctx) => {
 
 bot.command('app', async (ctx) => {
     return ctx.reply("📱 Нажмите на кнопку, чтобы открыть CoinFlow:", Markup.inlineKeyboard([
-        Markup.button.webApp('🚀 Открыть дашборд', process.env.WEBAPP_URL || 'https://google.com')
+        Markup.button.webApp('🚀 Открыть дашборд', process.env.WEBAPP_URL || 'https://coinflow-bot.vercel.app/')
     ]));
 });
 
