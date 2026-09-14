@@ -196,16 +196,51 @@ app.post('/api/ai/assistant', async (req, res) => {
 ${txList}`;
 
         try {
-            const aiResponse = await ai.models.generateContent({
-                model: 'gemini-3.5-flash',
-                contents: question,
-                config: {
-                    systemInstruction: systemPrompt,
-                    temperature: 0.2
-                }
-            });
+            const models = ['gemini-1.5-flash', 'gemini-1.5-flash-8b'];
+            let lastError: any = null;
+            let finalAnswer = '';
 
-            res.json({ answer: aiResponse.text || 'Не удалось сгенерировать ответ.' });
+            for (const model of models) {
+                try {
+                    const aiResponse = await ai.models.generateContent({
+                        model,
+                        contents: question,
+                        config: {
+                            systemInstruction: systemPrompt,
+                            temperature: 0.2
+                        }
+                    });
+                    finalAnswer = aiResponse.text || 'Не удалось сгенерировать ответ.';
+                    break;
+                } catch (err: any) {
+                    lastError = err;
+                    const errStr = String(err).toLowerCase();
+                    const status = err?.status || err?.statusCode || 500;
+                    const message = err?.message?.toLowerCase() || '';
+
+                    const isOverloaded = status === 503 || errStr.includes('503') || errStr.includes('high demand') || message.includes('unavailable');
+
+                    if (isOverloaded) {
+                        console.warn(`[Gemini] Model ${model} overloaded (503), switching to fallback...`);
+                        await new Promise((r) => setTimeout(r, 1000));
+                        continue;
+                    }
+                    throw err;
+                }
+            }
+
+            if (!finalAnswer && lastError) {
+                const errStr = String(lastError).toLowerCase();
+                const status = lastError?.status || lastError?.statusCode || 500;
+                const message = lastError?.message?.toLowerCase() || '';
+                const isOverloaded = status === 503 || errStr.includes('503') || errStr.includes('high demand') || message.includes('unavailable');
+                if (isOverloaded) {
+                    return res.json({ answer: "Серверы Google временно перегружены. Пожалуйста, повторите вопрос через 10 секунд." });
+                }
+                throw lastError;
+            }
+
+            res.json({ answer: finalAnswer });
         } catch (error: any) {
             console.error('Gemini call error:', error);
             const status = error?.status || error?.statusCode || 500;
