@@ -114,10 +114,20 @@ function App() {
             triggerHaptic('success');
         } catch (e: any) {
             console.error('Assistant API Request Error:', e);
+            let displayError = 'Ой, произошла ошибка. ИИ-сервер временно недоступен.';
+
             if (e.response) {
                 console.error(`Респонс с ошибкой: ${e.response.status}`, e.response.data);
+                if (e.response.status === 429) {
+                    displayError = 'Слишком много запросов. Подождите 10-15 секунд и попробуйте снова.';
+                } else {
+                    displayError = e.response.data?.error || `Ошибка сервера (${e.response.status})`;
+                }
+            } else if (e.request) {
+                displayError = 'Нет ответа от сервера. Проверьте интернет-соединение.';
             }
-            setAssistantResponse('Ой, произошла ошибка. ИИ-сервер временно недоступен.');
+
+            setAssistantResponse(displayError);
             triggerHaptic('error');
         } finally {
             setIsAssistantLoading(false);

@@ -184,7 +184,7 @@ app.post('/api/ai/assistant', async (req, res) => {
             return res.json({ answer: "У вас пока нет записанных трат для анализа." });
         }
 
-        const txList = transactions.map(t => `${t.date.toISOString().substring(0, 10)} | ${t.category?.name || 'Другое'} | ${t.comment || '-'} | ${t.amount} ${t.currency}`).join('\n');
+        const txList = transactions.slice(0, 40).map(t => `${t.date.toISOString().substring(0, 10)} | ${t.category?.name || 'Другое'} | ${t.comment || '-'} | ${t.amount} ${t.currency}`).join('\n');
 
         const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
         const systemPrompt = `Ты финансовый ИИ-ассистент сервиса CoinFlow. Тебе передан список недавних расходов пользователя и его вопрос.
@@ -195,18 +195,29 @@ app.post('/api/ai/assistant', async (req, res) => {
 Список трат:
 ${txList}`;
 
-        const aiResponse = await ai.models.generateContent({
-            model: 'gemini-3.5-flash',
-            contents: question,
-            config: {
-                systemInstruction: systemPrompt,
-                temperature: 0.2
-            }
-        });
+        try {
+            const aiResponse = await ai.models.generateContent({
+                model: 'gemini-3.5-flash',
+                contents: question,
+                config: {
+                    systemInstruction: systemPrompt,
+                    temperature: 0.2
+                }
+            });
 
-        res.json({ answer: aiResponse.text || 'Не удалось сгенерировать ответ.' });
+            res.json({ answer: aiResponse.text || 'Не удалось сгенерировать ответ.' });
+        } catch (error: any) {
+            console.error('Gemini call error:', error);
+            const status = error?.status || error?.statusCode || 500;
+            const message = error?.message || 'Ошибка генерации';
+
+            if (status === 429 || message.includes('RESOURCE_EXHAUSTED') || message.includes('429')) {
+                return res.status(429).json({ error: 'Превышен лимит запросов к ИИ. Подождите пару секунд.' });
+            }
+            return res.status(500).json({ error: message });
+        }
     } catch (err: any) {
-        console.error('AI Assistant Error:', err);
+        console.error('AI Assistant Master Error:', err);
         res.status(500).json({ error: String(err) });
     }
 });
