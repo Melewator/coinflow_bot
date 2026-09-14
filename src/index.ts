@@ -6,6 +6,7 @@ import { prisma } from './db';
 import path from 'path';
 // @ts-ignore
 import { GoogleGenAI } from '@google/genai';
+import { ai, AI_MODEL_NAME } from './services/aiParser';
 
 // Глобальная сериализация BigInt для Express
 (BigInt.prototype as any).toJSON = function () {
@@ -186,7 +187,6 @@ app.post('/api/ai/assistant', async (req, res) => {
 
         const txList = transactions.slice(0, 40).map(t => `${t.date.toISOString().substring(0, 10)} | ${t.category?.name || 'Другое'} | ${t.comment || '-'} | ${t.amount} ${t.currency}`).join('\n');
 
-        const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
         const systemPrompt = `Ты финансовый ИИ-ассистент сервиса CoinFlow. Тебе передан список недавних расходов пользователя и его вопрос.
 Проанализируй данные, посчитай суммы и ответь на русском языке кратко, точно и вежливо (1-3 предложения).
 Если спрашивают период, ориентируйся на текущую дату (${new Date().toLocaleDateString('ru-RU')}).
@@ -196,7 +196,7 @@ app.post('/api/ai/assistant', async (req, res) => {
 ${txList}`;
 
         try {
-            const models = ['gemini-1.5-flash', 'gemini-1.5-flash-8b'];
+            const models = [AI_MODEL_NAME, 'gemini-1.5-flash-8b'];
             let lastError: any = null;
             let finalAnswer = '';
 
@@ -244,16 +244,16 @@ ${txList}`;
         } catch (error: any) {
             console.error('Gemini call error:', error);
             const status = error?.status || error?.statusCode || 500;
-            const message = error?.message || 'Ошибка генерации';
+            const message = error?.message?.toLowerCase() || '';
 
-            if (status === 429 || message.includes('RESOURCE_EXHAUSTED') || message.includes('429')) {
+            if (status === 429 || message.includes('resource_exhausted') || message.includes('429')) {
                 return res.status(429).json({ error: 'Превышен лимит запросов к ИИ. Подождите пару секунд.' });
             }
-            return res.status(500).json({ error: message });
+            return res.status(500).json({ error: "Не удалось получить ответ от ИИ. Попробуйте еще раз через пару секунд." });
         }
     } catch (err: any) {
         console.error('AI Assistant Master Error:', err);
-        res.status(500).json({ error: String(err) });
+        res.status(500).json({ error: "Не удалось получить ответ от ИИ. Попробуйте еще раз через пару секунд." });
     }
 });
 

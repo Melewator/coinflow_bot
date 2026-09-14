@@ -5,7 +5,8 @@ import * as dotenv from 'dotenv';
 dotenv.config();
 
 // Инициализация клиента Google Generative AI
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+export const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+export const AI_MODEL_NAME = 'gemini-3.5-flash';
 
 export interface ParseExpenseOptions {
     categories: string[];
@@ -68,7 +69,7 @@ export async function parseExpenseMessage(text: string, options: ParseExpenseOpt
 
     try {
         const response = await ai.models.generateContent({
-            model: 'gemini-3.5-flash',
+            model: AI_MODEL_NAME,
             contents: prompt,
             config: {
                 // responseMimeType: 'application/json' (SDK сам обрабатывает это при наличии responseSchema)
