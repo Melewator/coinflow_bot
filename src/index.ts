@@ -159,18 +159,22 @@ app.post('/api/user/delete-account', async (req, res) => {
     }
 });
 
-app.post('/api/assistant/ask', async (req, res) => {
+app.post('/api/ai/assistant', async (req, res) => {
     try {
         const { userId, question } = req.body;
         if (!userId || !question) return res.status(400).json({ error: 'Missing parameters' });
 
+        if (!process.env.GEMINI_API_KEY) {
+            return res.status(500).json({ error: 'API ключ ИИ не настроен на сервере.' });
+        }
+
         const thirtyDaysAgo = new Date();
-        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 60); // Берем до 60 дней, как просили (30-60 дней)
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 60);
 
         const transactions = await prisma.transaction.findMany({
             where: {
-                userId,
-                date: { gte: thirtyDaysAgo } // optional parameter to filter recent
+                userId: String(userId),
+                date: { gte: thirtyDaysAgo }
             },
             orderBy: { date: 'desc' },
             include: { category: true }
@@ -192,7 +196,7 @@ app.post('/api/assistant/ask', async (req, res) => {
 ${txList}`;
 
         const aiResponse = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
+            model: 'gemini-1.5-flash',
             contents: question,
             config: {
                 systemInstruction: systemPrompt,
@@ -201,9 +205,9 @@ ${txList}`;
         });
 
         res.json({ answer: aiResponse.text || 'Не удалось сгенерировать ответ.' });
-    } catch (e) {
-        console.error('Assistant API error:', e);
-        res.status(500).json({ error: 'Internal Server Error' });
+    } catch (err: any) {
+        console.error('AI Assistant Error:', err);
+        res.status(500).json({ error: String(err) });
     }
 });
 

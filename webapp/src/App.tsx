@@ -105,11 +105,18 @@ function App() {
         setAssistantResponse('');
         triggerHaptic('selection');
         try {
-            const response = await axios.post(`${API_BASE_URL}/assistant/ask`, { userId, question: assistantQuery });
+            const response = await axios.post(
+                `${API_BASE_URL}/ai/assistant`,
+                { userId, question: assistantQuery },
+                { timeout: 60000 }
+            );
             setAssistantResponse(response.data.answer);
             triggerHaptic('success');
-        } catch (e) {
-            console.error(e);
+        } catch (e: any) {
+            console.error('Assistant API Request Error:', e);
+            if (e.response) {
+                console.error(`Респонс с ошибкой: ${e.response.status}`, e.response.data);
+            }
             setAssistantResponse('Ой, произошла ошибка. ИИ-сервер временно недоступен.');
             triggerHaptic('error');
         } finally {
