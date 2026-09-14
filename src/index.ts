@@ -159,6 +159,54 @@ app.post('/api/user/delete-account', async (req, res) => {
     }
 });
 
+app.post('/api/assistant/ask', async (req, res) => {
+    try {
+        const { userId, question } = req.body;
+        if (!userId || !question) return res.status(400).json({ error: 'Missing parameters' });
+
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 60); // Берем до 60 дней, как просили (30-60 дней)
+
+        const transactions = await prisma.transaction.findMany({
+            where: {
+                userId,
+                date: { gte: thirtyDaysAgo } // optional parameter to filter recent
+            },
+            orderBy: { date: 'desc' },
+            include: { category: true }
+        });
+
+        if (transactions.length === 0) {
+            return res.json({ answer: "У вас пока нет записанных трат для анализа." });
+        }
+
+        const txList = transactions.map(t => `${t.date.toISOString().substring(0, 10)} | ${t.category?.name || 'Другое'} | ${t.comment || '-'} | ${t.amount} ${t.currency}`).join('\n');
+
+        const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+        const systemPrompt = `Ты финансовый ИИ-ассистент сервиса CoinFlow. Тебе передан список недавних расходов пользователя и его вопрос.
+Проанализируй данные, посчитай суммы и ответь на русском языке кратко, точно и вежливо (1-3 предложения).
+Если спрашивают период, ориентируйся на текущую дату (${new Date().toLocaleDateString('ru-RU')}).
+Формат трат: Дата | Категория | Описание | Сумма | Валюта.
+
+Список трат:
+${txList}`;
+
+        const aiResponse = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: question,
+            config: {
+                systemInstruction: systemPrompt,
+                temperature: 0.2
+            }
+        });
+
+        res.json({ answer: aiResponse.text || 'Не удалось сгенерировать ответ.' });
+    } catch (e) {
+        console.error('Assistant API error:', e);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
 app.get('/api/transactions/:userId', async (req, res) => {
     const userId = req.params.userId;
     try {

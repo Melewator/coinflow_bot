@@ -83,6 +83,11 @@ function App() {
     const [promoCode, setPromoCode] = useState('');
     const [promoError, setPromoError] = useState('');
 
+    const [assistantModalOpen, setAssistantModalOpen] = useState(false);
+    const [assistantQuery, setAssistantQuery] = useState('');
+    const [assistantResponse, setAssistantResponse] = useState('');
+    const [isAssistantLoading, setIsAssistantLoading] = useState(false);
+
     const rawUrl = (import.meta as any).env?.VITE_API_URL || 'https://coinflow-bot.onrender.com/api';
     const API_BASE_URL = rawUrl.replace(/\/+$/, '');
 
@@ -92,6 +97,29 @@ function App() {
             if (type === 'selection') haptic.selectionChanged();
             else haptic.notificationOccurred(type);
         }
+    };
+
+    const handleAskAssistant = async () => {
+        if (!assistantQuery.trim() || isAssistantLoading) return;
+        setIsAssistantLoading(true);
+        setAssistantResponse('');
+        triggerHaptic('selection');
+        try {
+            const response = await axios.post(`${API_BASE_URL}/assistant/ask`, { userId, question: assistantQuery });
+            setAssistantResponse(response.data.answer);
+            triggerHaptic('success');
+        } catch (e) {
+            console.error(e);
+            setAssistantResponse('Ой, произошла ошибка. ИИ-сервер временно недоступен.');
+            triggerHaptic('error');
+        } finally {
+            setIsAssistantLoading(false);
+        }
+    };
+
+    const handleAssistantChip = (text: string) => {
+        setAssistantQuery(text);
+        triggerHaptic('selection');
     };
 
     useEffect(() => {
@@ -780,13 +808,81 @@ function App() {
                 </p>
             </footer>
 
-            {/* FAB */}
-            <button
-                onClick={() => handleOpenModal()}
-                className="fixed bottom-6 right-6 w-[56px] h-[56px] bg-[var(--app-button)] text-[var(--app-button-text)] rounded-full flex items-center justify-center shadow-lg shadow-blue-500/30 active:scale-90 transition-transform btn-action"
-            >
-                <Plus size={28} className="stroke-[3]" />
-            </button>
+            {/* FABs */}
+            <div className="fixed bottom-6 right-6 flex flex-col gap-3 z-40">
+                <button
+                    onClick={() => { triggerHaptic('selection'); setAssistantModalOpen(true); }}
+                    className="w-[48px] h-[48px] bg-[var(--app-card-bg)] text-[var(--app-text)] border-2 border-[var(--app-button)] rounded-full flex items-center justify-center shadow-lg active:scale-90 transition-transform btn-action theme-active-glow mx-auto"
+                >
+                    ✨
+                </button>
+                <button
+                    onClick={() => handleOpenModal()}
+                    className="w-[56px] h-[56px] bg-[var(--app-button)] text-[var(--app-button-text)] rounded-full flex items-center justify-center shadow-lg active:scale-90 transition-transform btn-action"
+                >
+                    <Plus size={28} className="stroke-[3]" />
+                </button>
+            </div>
+
+            {/* Модалка ИИ-Ассистента */}
+            {assistantModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-sm"
+                    onClick={(e) => { if (e.target === e.currentTarget) setAssistantModalOpen(false); }}>
+                    <div className="bg-[var(--app-card-bg)] w-full max-w-md rounded-t-3xl p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] shadow-2xl animate-[slideUp_0.3s_ease-out] flex flex-col max-h-[85vh] card">
+                        <div className="flex items-center justify-between mb-4">
+                            <h2 className="text-xl font-black text-[var(--app-text)] tracking-tight">
+                                Финансовый ИИ-Ассистент ✨
+                            </h2>
+                            <button onClick={() => setAssistantModalOpen(false)} className="p-2 bg-[var(--app-bg)] text-[var(--app-hint)] rounded-full active:scale-90 transition-transform">
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2 mb-4">
+                            {['Сколько на кофе за 3 дня?', 'Траты на такси за неделю', 'Топ расходов за месяц'].map(chip => (
+                                <button key={chip} onClick={() => handleAssistantChip(chip)} className="flex-1 min-w-[120px] bg-[var(--app-bg)] text-[var(--app-text)] font-semibold text-xs border border-[var(--app-border)]/50 rounded-xl px-3 py-2 active:scale-95 transition-transform text-center btn-action shadow-none">
+                                    {chip}
+                                </button>
+                            ))}
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto mb-4 bg-[var(--app-bg)] rounded-2xl p-4 border border-[var(--app-border)]/40 min-h-[140px] shadow-inner tab-item">
+                            {isAssistantLoading ? (
+                                <div className="flex items-center justify-center h-full gap-3 text-[var(--app-button)] font-bold text-sm">
+                                    <div className="w-5 h-5 rounded-full border-2 border-currentColor border-t-transparent animate-spin"></div>
+                                    Анализирую ваши чеки...
+                                </div>
+                            ) : assistantResponse ? (
+                                <div className="text-[var(--app-text)] font-medium text-[15px] leading-relaxed whitespace-pre-wrap">
+                                    {assistantResponse}
+                                </div>
+                            ) : (
+                                <div className="text-[var(--app-hint)] text-sm font-medium opacity-80 h-full flex items-center justify-center text-center px-4">
+                                    Просто спросите меня о ваших расходах! Я проанализирую историю и быстро отвечу.
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="flex bg-[var(--app-bg)] border border-[var(--app-border)]/50 rounded-2xl p-2 gap-2 focus-within:border-[var(--app-button)] transition-colors tab-item shadow-none">
+                            <input
+                                type="text"
+                                value={assistantQuery}
+                                onChange={(e) => setAssistantQuery(e.target.value)}
+                                className="flex-1 bg-transparent border-none outline-none text-[var(--app-text)] text-[15px] font-medium px-3"
+                                placeholder="Спросить..."
+                                onKeyPress={(e) => { if (e.key === 'Enter') handleAskAssistant(); }}
+                            />
+                            <button
+                                onClick={handleAskAssistant}
+                                disabled={!assistantQuery.trim() || isAssistantLoading}
+                                className="w-11 h-11 bg-[var(--app-button)] text-[var(--app-button-text)] rounded-xl flex items-center justify-center flex-shrink-0 disabled:opacity-50 active:scale-95 transition-transform btn-action"
+                            >
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Модалка Тем / Настроек */}
             {themeModalOpen && (
